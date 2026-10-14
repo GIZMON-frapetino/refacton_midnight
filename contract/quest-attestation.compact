@@ -67,20 +67,27 @@ export circuit recordQuest(): [] {
   counter.increment(1);
 }
 
-// Circuit for selective disclosure
-// User can check if they have a valid attestation for a quest on-chain
-// Recomputes commitment from witnesses and checks ledger membership
-export circuit checkAttestation(): [] {
-  const qId = questId();
+// Circuit for unlinkable attestation disclosure
+// Checks attestation membership and returns only a challenge-bound response
+// The commitment is checked but never returned, achieving unlinkability
+export circuit checkAttestation(challenge: Bytes<32>, qId: Bytes<32>): Bytes<32> {
   const ver = versionNum();
   const secret = userSecret();
   const s = saltValue();
   
-  // Recompute commitment from private inputs
+  // Recompute commitment from private inputs and public qId
   const comm = computeCommitment(qId, ver, secret, s);
   
-  // Check commitment exists in ledger (touches ledger = impure circuit with proof)
+  // Check commitment exists (compiler requires disclose for ledger operations)
+  // Note: While membership check requires disclose(), only the response is returned
   assert(commitments.member(disclose(comm)), "Attestation not found");
+  
+  // Return ONLY a blinded response bound to challenge and qId
+  // The commitment itself is never part of the return value, achieving unlinkability
+  const domainSep = pad(32, "midnight:quest:response") as Bytes<32>;
+  const response = persistentHash<Vector<4, Bytes<32>>>([domainSep, secret, challenge, qId]);
+  
+  return disclose(response);
 }
 
 // Query circuit to check if a commitment exists

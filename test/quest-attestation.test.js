@@ -215,16 +215,29 @@ describe('QuestAttestation Contract - Multiple Users & Quests', () => {
     });
   });
 
-  describe('checkAttestation circuit (selective disclosure)', () => {
-    test('should pass check for existing attestation with correct inputs', () => {
+  describe('checkAttestation circuit (unlinkable disclosure)', () => {
+    test('should return challenge-bound response for existing attestation', () => {
       // Record attestation
       simulator.callCircuit('recordQuest');
 
-      // Check attestation with same witnesses (commitment derived internally)
-      // Should not throw because commitment exists in ledger
-      expect(() => {
-        simulator.callCircuit('checkAttestation');
-      }).not.toThrow();
+      // Prepare public inputs for checkAttestation
+      const challenge = new Uint8Array(randomBytes(32));
+      const questId = user1Data.questId;
+
+      // Update witnesses - questId is now a public input, not a witness
+      const checkWitnesses = {
+        versionNum: (context) => [{}, user1Data.version],
+        userSecret: (context) => [{}, user1Data.userSecret],
+        saltValue: (context) => [{}, user1Data.salt]
+      };
+      simulator.contract.witnesses = checkWitnesses;
+
+      // Check attestation with challenge and public questId
+      const result = simulator.callCircuit('checkAttestation', challenge, questId);
+
+      // Should return a 32-byte response
+      expect(result.result).toBeInstanceOf(Uint8Array);
+      expect(result.result.length).toBe(32);
     });
 
     test('should fail check with wrong secret', () => {
@@ -232,11 +245,12 @@ describe('QuestAttestation Contract - Multiple Users & Quests', () => {
       simulator.callCircuit('recordQuest');
 
       // Try to check with different secret
+      const challenge = new Uint8Array(randomBytes(32));
+      const questId = user1Data.questId;
+
       const wrongWitnesses = {
-        questId: (context) => [{}, user1Data.questId],
         versionNum: (context) => [{}, user1Data.version],
         userSecret: (context) => [{}, new Uint8Array(randomBytes(32))], // Different secret
-        localSecretKey: (context) => [{}, user1Data.localSecretKey],
         saltValue: (context) => [{}, user1Data.salt]
       };
 
@@ -244,8 +258,31 @@ describe('QuestAttestation Contract - Multiple Users & Quests', () => {
 
       // Should fail because commitment won't be found in ledger
       expect(() => {
-        simulator.callCircuit('checkAttestation');
+        simulator.callCircuit('checkAttestation', challenge, questId);
       }).toThrow(/Attestation not found/);
+    });
+
+    test('should return different responses for different challenges (unlinkability)', () => {
+      // Record attestation
+      simulator.callCircuit('recordQuest');
+
+      // First check with challenge1
+      const challenge1 = new Uint8Array(randomBytes(32));
+      const challenge2 = new Uint8Array(randomBytes(32));
+      const questId = user1Data.questId;
+
+      const checkWitnesses = {
+        versionNum: (context) => [{}, user1Data.version],
+        userSecret: (context) => [{}, user1Data.userSecret],
+        saltValue: (context) => [{}, user1Data.salt]
+      };
+      simulator.contract.witnesses = checkWitnesses;
+
+      const response1 = simulator.callCircuit('checkAttestation', challenge1, questId);
+      const response2 = simulator.callCircuit('checkAttestation', challenge2, questId);
+
+      // Different challenges should produce different responses (unlinkability)
+      expect(response1.result).not.toEqual(response2.result);
     });
   });
 

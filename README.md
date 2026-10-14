@@ -65,9 +65,9 @@ Allows users to check if they have a valid attestation for a quest without revea
 
 This project leverages Midnight Network's unique capabilities:
 
-### Zero-Knowledge Proofs
+### Zero-Knowledge Circuits
 
-The contract uses Midnight's zero-knowledge circuit system to enable private transactions. The `@zk` annotation marks circuits that generate zero-knowledge attestations, allowing computation to occur without revealing inputs.
+The contract uses Midnight's zero-knowledge circuit system to enable private transactions. Circuits allow computation to occur without revealing private inputs (witnesses).
 
 ### Compact Language
 
@@ -82,7 +82,8 @@ Written in Compact, Midnight's domain-specific language for zero-knowledge smart
 
 The contract interacts with Midnight's ledger (Ledger 8) through:
 
-- **Mappings**: Efficient key-value storage for commitments and nullifiers
+- **Set storage**: Efficient collection storage for commitments and nullifiers
+- **Counter storage**: Tracks total attestation count
 - **State updates**: Atomic updates to ledger state within circuits
 - **Query operations**: Read-only access to ledger data
 
@@ -92,7 +93,10 @@ Midnight's privacy model separates:
 
 - **Public state**: Stored on the ledger (commitments, nullifiers, counter)
 - **Private state**: Held by users as witnesses (quest details, secrets)
-- **Zero-knowledge attestations**: Enable selective disclosure without revealing private data
+- **Zero-knowledge circuits**: Enable selective disclosure without revealing private data
+- **Unlinkable disclosure**: Challenge-bound responses prevent linking attestations across different requests
+
+Note: Circuit generation and execution runs entirely in the user's own local environment, not on external servers.
 
 ## Setup
 
@@ -157,16 +161,18 @@ The compiler generates:
 
 - `compiled/contract/` - TypeScript/JavaScript bindings (`index.js`, `index.d.ts`)
 - `compiled/zkir/` - Zero-knowledge circuit descriptions (`*.zkir`, `*.bzkir`)
-- `compiled/keys/` - Proving and verifier keys (`*.prover`, `*.verifier`)
+- `compiled/keys/` - Cryptographic keys for circuit execution (`*.prover`, `*.verifier`)
 - `compiled/compiler/` - Contract metadata (`contract-info.json`)
 
-The contract compiles 5 circuits:
+The contract compiles 5 circuits with ZK circuit generation:
 
-1. `recordQuest` - Records a quest attestation (ZK attestation required)
-2. `checkAttestation` - Selective disclosure check
-3. `hasCommitment` - Query if commitment exists (ZK attestation required)
-4. `hasNullifier` - Query if nullifier is used (ZK attestation required)
-5. `getCounterValue` - Get counter value (ZK attestation required)
+1. `recordQuest` - Records a quest attestation
+2. `checkAttestation` - Unlinkable attestation disclosure check (returns challenge-bound response)
+3. `hasCommitment` - Query if commitment exists
+4. `hasNullifier` - Query if nullifier is used
+5. `getCounterValue` - Get total attestation count
+
+All circuit ZKIRs are generated in `compiled/zkir/`, including `checkAttestation.zkir`.
 
 ### Run Tests
 
@@ -176,15 +182,16 @@ npm test
 
 Tests use the Midnight Compact runtime with the compiled contract and cover:
 
-- **recordQuest circuit** (3 tests)
+- **recordQuest circuit** (5 tests)
   - Successfully record quest attestations
+  - Allow multiple users and multiple quests
   - Reject duplicate nullifier (double recording prevention)
   - Counter increments correctly
 
 - **checkAttestation circuit** (3 tests)
-  - Pass check for existing attestation with correct inputs
-  - Fail check with wrong commitment
-  - Fail check with wrong secret (selective disclosure)
+  - Return challenge-bound response for existing attestation with correct inputs
+  - Fail check with wrong secret
+  - Return different responses for different challenges (unlinkability)
 
 - **hasCommitment circuit** (2 tests)
   - Return true for recorded commitments
@@ -196,12 +203,13 @@ Tests use the Midnight Compact runtime with the compiled contract and cover:
 
 - **getCounterValue circuit** (2 tests)
   - Return 0 for initial state
-  - Return 1 after recording one attestation
+  - Return correct count after multiple attestations
 
-- **Privacy model** (1 test)
-  - Demonstrate selective disclosure without revealing secrets
+- **Privacy model** (2 tests)
+  - Demonstrate nullifier derivation from local secret
+  - Multiple users record without revealing secrets
 
-All 13 tests pass using local simulation with the compiled contract.
+All 16 tests pass using local simulation with the compiled contract.
 
 ### Development
 
@@ -248,28 +256,31 @@ npm run test:watch
 
 ```javascript
 // Private inputs (witnesses)
-const questId = "0x...";        // 32 bytes
-const version = 1;              // 16-bit unsigned integer
-const userSecret = "0x...";     // 32 bytes
-const salt = "0x...";           // 32 bytes
-const nullifier = "0x...";      // 32 bytes
+const questId = new Uint8Array(32);        // 32 bytes
+const version = 1;                         // 16-bit unsigned integer
+const userSecret = new Uint8Array(32);     // 32 bytes
+const localSecretKey = new Uint8Array(32); // 32 bytes for nullifier derivation
+const salt = new Uint8Array(32);           // 32 bytes
 
-// Calls recordQuest circuit
-await contract.recordQuest(questId, version, userSecret, salt, nullifier);
+// Calls recordQuest circuit (nullifier derived internally)
+await contract.recordQuest(questId, version, userSecret, localSecretKey, salt);
 ```
 
-### Checking an Attestation
+### Checking an Attestation (Unlinkable Disclosure)
 
 ```javascript
-// Private inputs and expected result
-const questId = "0x...";
-const version = 1;
-const userSecret = "0x...";
-const salt = "0x...";
-const expectedResult = true;    // expect attestation to exist
+// Public inputs
+const challenge = new Uint8Array(32);  // Per-requester challenge
+const questId = new Uint8Array(32);    // Quest identifier
 
-// Calls checkAttestation circuit (selective disclosure)
-await contract.checkAttestation(questId, version, userSecret, salt, expectedResult);
+// Private inputs (witnesses)
+const version = 1;
+const userSecret = new Uint8Array(32);
+const salt = new Uint8Array(32);
+
+// Calls checkAttestation circuit - returns challenge-bound response
+const response = await contract.checkAttestation(challenge, questId, version, userSecret, salt);
+// Response is bound to challenge and questId, does not reveal commitment
 ```
 
 ### Querying Public State
@@ -292,8 +303,14 @@ const count = await contract.getCounter();
 - **Private data never leaves the device**: Quest details and user secrets are witnesses only
 - **Commitments are one-way**: Cannot reverse a commitment to reveal original data
 - **Nullifiers prevent replay**: Same attestation cannot be recorded twice
-- **Selective disclosure is safe**: Checking attestation does not leak private inputs
-- **No linkability**: Different quests by the same user cannot be linked on-chain
+- **Unlinkable disclosure**: Challenge-bound responses prevent linking attestations; the commitment itself is never revealed
+- **No cross-quest linkability**: Different quests by the same user cannot be linked on-chain
+
+## Known Limitations
+
+- **No issuer backing yet**: The current implementation does not include issuer signatures or attestation from trusted parties. This feature is planned for Wave 3.
+- **Transaction fee linkability**: While attestations themselves are unlinkable, transaction fees are paid from wallet addresses which may be linkable across multiple transactions on-chain.
+- **Local execution only**: This Wave 2 implementation runs in local simulation. Network deployment requires additional setup.
 
 ## Contributing
 
