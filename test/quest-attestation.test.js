@@ -96,12 +96,15 @@ describe('QuestAttestation Contract - Multiple Users & Quests', () => {
     quest2 = new Uint8Array(randomBytes(32));
 
     // Start with user1's witnesses
+    // merklePath is a dummy here, only used in checkAttestation circuit
+    const dummyPath = { leaf: new Uint8Array(32), path: [] };
     const witnesses = {
       questId: (context) => [{}, user1Data.questId],
       versionNum: (context) => [{}, user1Data.version],
       userSecret: (context) => [{}, user1Data.userSecret],
       localSecretKey: (context) => [{}, user1Data.localSecretKey],
-      saltValue: (context) => [{}, user1Data.salt]
+      saltValue: (context) => [{}, user1Data.salt],
+      merklePath: (context) => [{}, dummyPath]
     };
 
     simulator = new ContractSimulator(witnesses);
@@ -174,12 +177,14 @@ describe('QuestAttestation Contract - Multiple Users & Quests', () => {
       simulator.callCircuit('recordQuest');
 
       // Same user tries to record same quest again (nullifier derived from same localSecretKey + questId)
+      const dummyPath = { leaf: new Uint8Array(32), path: [] };
       const duplicateWitnesses = {
         questId: (context) => [{}, quest1],
         versionNum: (context) => [{}, user1Data.version],
         userSecret: (context) => [{}, user1Data.userSecret],
         localSecretKey: (context) => [{}, user1Data.localSecretKey], // Same key
-        saltValue: (context) => [{}, new Uint8Array(randomBytes(32))] // Different salt doesn't matter
+        saltValue: (context) => [{}, new Uint8Array(randomBytes(32))], // Different salt doesn't matter
+        merklePath: (context) => [{}, dummyPath]
       };
 
       const duplicateSimulator = new ContractSimulator(duplicateWitnesses);
@@ -215,7 +220,7 @@ describe('QuestAttestation Contract - Multiple Users & Quests', () => {
     });
   });
 
-  describe('checkAttestation circuit (unlinkable disclosure)', () => {
+  describe('checkAttestation circuit (unlinkable disclosure with Merkle tree)', () => {
     test('should return challenge-bound response for existing attestation', () => {
       // Record attestation
       simulator.callCircuit('recordQuest');
@@ -224,11 +229,17 @@ describe('QuestAttestation Contract - Multiple Users & Quests', () => {
       const challenge = new Uint8Array(randomBytes(32));
       const questId = user1Data.questId;
 
-      // Update witnesses - questId is now a public input, not a witness
+      // Get a path for the first leaf (the commitment we just recorded)
+      const state = simulator.getLedgerState();
+      const firstLeaf = new Uint8Array(32); // Placeholder - circuit recomputes and uses
+      const path = state.commitments.pathForLeaf(0n, firstLeaf);
+
+      // Update witnesses - questId is now a public input, merklePath is a witness
       const checkWitnesses = {
         versionNum: (context) => [{}, user1Data.version],
         userSecret: (context) => [{}, user1Data.userSecret],
-        saltValue: (context) => [{}, user1Data.salt]
+        saltValue: (context) => [{}, user1Data.salt],
+        merklePath: (context) => [{}, path]
       };
       simulator.contract.witnesses = checkWitnesses;
 
@@ -248,18 +259,24 @@ describe('QuestAttestation Contract - Multiple Users & Quests', () => {
       const challenge = new Uint8Array(randomBytes(32));
       const questId = user1Data.questId;
 
+      // Get the path for the first leaf
+      const state = simulator.getLedgerState();
+      const firstLeaf = new Uint8Array(32);
+      const path = state.commitments.pathForLeaf(0n, firstLeaf);
+
       const wrongWitnesses = {
         versionNum: (context) => [{}, user1Data.version],
         userSecret: (context) => [{}, new Uint8Array(randomBytes(32))], // Different secret
-        saltValue: (context) => [{}, user1Data.salt]
+        saltValue: (context) => [{}, user1Data.salt],
+        merklePath: (context) => [{}, path]
       };
 
       simulator.contract.witnesses = wrongWitnesses;
 
-      // Should fail because commitment won't be found in ledger
+      // Should fail because path leaf won't match recomputed commitment
       expect(() => {
         simulator.callCircuit('checkAttestation', challenge, questId);
-      }).toThrow(/Attestation not found/);
+      }).toThrow(/Merkle path leaf does not match commitment/);
     });
 
     test('should return different responses for different challenges (unlinkability)', () => {
@@ -271,10 +288,16 @@ describe('QuestAttestation Contract - Multiple Users & Quests', () => {
       const challenge2 = new Uint8Array(randomBytes(32));
       const questId = user1Data.questId;
 
+      // Get the Merkle path for the first leaf
+      const state = simulator.getLedgerState();
+      const firstLeaf = new Uint8Array(32);
+      const path = state.commitments.pathForLeaf(0n, firstLeaf);
+
       const checkWitnesses = {
         versionNum: (context) => [{}, user1Data.version],
         userSecret: (context) => [{}, user1Data.userSecret],
-        saltValue: (context) => [{}, user1Data.salt]
+        saltValue: (context) => [{}, user1Data.salt],
+        merklePath: (context) => [{}, path]
       };
       simulator.contract.witnesses = checkWitnesses;
 
@@ -286,22 +309,39 @@ describe('QuestAttestation Contract - Multiple Users & Quests', () => {
     });
   });
 
-  describe('hasCommitment circuit', () => {
-    test('should return true for recorded commitment', () => {
+  describe('Merkle tree storage', () => {
+    test('should store commitments in HistoricMerkleTree', () => {
       // Record attestation
       simulator.callCircuit('recordQuest');
       
-      // Query using a known commitment won't work easily since we don't know the hash
-      // But we can verify the circuit works by checking a non-existent one returns false
-      const fakeCommitment = new Uint8Array(randomBytes(32));
-      const result = simulator.callCircuit('hasCommitment', fakeCommitment);
-      expect(result.result).toBe(false);
+      // Tree should have at least one leaf after recording
+      const afterState = simulator.getLedgerState();
+      
+      // Verify we can get a path for the first leaf
+      const firstLeaf = new Uint8Array(32);
+      expect(() => afterState.commitments.pathForLeaf(0n, firstLeaf)).not.toThrow();
     });
 
-    test('should return false for non-existent commitment', () => {
-      const fakeCommitment = new Uint8Array(randomBytes(32));
-      const result = simulator.callCircuit('hasCommitment', fakeCommitment);
-      expect(result.result).toBe(false);
+    test('should allow multiple commitments in tree', () => {
+      // Record first attestation
+      simulator.callCircuit('recordQuest');
+      
+      // Record second with different user
+      const user2Witnesses = {
+        questId: (context) => [{}, new Uint8Array(randomBytes(32))],
+        versionNum: (context) => [{}, 1n],
+        userSecret: (context) => [{}, new Uint8Array(randomBytes(32))],
+        localSecretKey: (context) => [{}, new Uint8Array(randomBytes(32))],
+        saltValue: (context) => [{}, new Uint8Array(randomBytes(32))]
+      };
+      simulator.contract.witnesses = user2Witnesses;
+      simulator.callCircuit('recordQuest');
+
+      const state = simulator.getLedgerState();
+      // Verify we can get paths for both leaves
+      const leaf = new Uint8Array(32);
+      expect(() => state.commitments.pathForLeaf(0n, leaf)).not.toThrow();
+      expect(() => state.commitments.pathForLeaf(1n, leaf)).not.toThrow();
     });
   });
 
@@ -360,12 +400,14 @@ describe('QuestAttestation Contract - Multiple Users & Quests', () => {
 
       // Try to record again with same localSecretKey and questId
       // Even with different salt and userSecret, should fail because nullifier is the same
+      const dummyPath = { leaf: new Uint8Array(32), path: [] };
       const sameUserWitnesses = {
         questId: (context) => [{}, quest1], // Same quest
         versionNum: (context) => [{}, 1n],
         userSecret: (context) => [{}, new Uint8Array(randomBytes(32))], // Different secret
         localSecretKey: (context) => [{}, user1Data.localSecretKey], // Same local key
-        saltValue: (context) => [{}, new Uint8Array(randomBytes(32))] // Different salt
+        saltValue: (context) => [{}, new Uint8Array(randomBytes(32))], // Different salt
+        merklePath: (context) => [{}, dummyPath]
       };
 
       const sameUserSimulator = new ContractSimulator(sameUserWitnesses);
