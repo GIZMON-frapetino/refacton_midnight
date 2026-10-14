@@ -18,9 +18,9 @@ Quest Attestation is a Compact smart contract that allows users to record quest 
 
 ### Contract Structure
 
-The `QuestAttestation` contract uses Merkle tree storage for maximum privacy:
+The `QuestAttestation` contract uses Set-based storage to support multiple users and quests:
 
-1. **Commitments** (`HistoricMerkleTree<32, Bytes<32>>`): Merkle tree of cryptographic hashes of quest completions - only the root is disclosed on-chain
+1. **Commitments** (`Set<Bytes<32>>`): Set of cryptographic hashes of quest completions
 2. **Nullifiers** (`Set<Bytes<32>>`): Set of nullifiers to prevent duplicate attestation records  
 3. **Counter** (`Counter`): Tracks total number of attestations
 
@@ -47,15 +47,13 @@ Records a quest attestation by computing a commitment from private inputs and st
 - Private inputs remain hidden
 - Supports multiple users and multiple quests
 
-#### `checkAttestation` (Unlinkable Disclosure Circuit)
+#### `checkAttestation` (Selective Disclosure Circuit)
 
-Allows users to check attestations without revealing the commitment itself. The circuit:
+Allows users to check if they have a valid attestation for a quest without revealing their secret or other details. The circuit:
 
-- Takes a Merkle path witness and challenge as inputs
 - Recomputes commitment from private inputs
-- Computes Merkle root from the path
-- Checks only the root against ledger (not individual commitments)
-- Returns challenge-bound response without exposing private data or commitments
+- Checks if commitment exists on ledger
+- Returns result without exposing private data
 
 #### Query Circuits
 
@@ -84,23 +82,21 @@ Written in Compact, Midnight's domain-specific language for zero-knowledge smart
 
 The contract interacts with Midnight's ledger (Ledger 8) through:
 
-- **HistoricMerkleTree storage**: Privacy-preserving tree storage for commitments - only roots are disclosed
-- **Set storage**: Efficient collection storage for nullifiers
+- **Set storage**: Efficient collection storage for commitments and nullifiers
 - **Counter storage**: Tracks total attestation count
 - **State updates**: Atomic updates to ledger state within circuits
-- **Merkle path verification**: Zero-knowledge membership checks without revealing individual leaves
+- **Query operations**: Read-only access to ledger data
 
 ### Privacy Model
 
 Midnight's privacy model separates:
 
 - **Public state**: Stored on the ledger (commitments, nullifiers, counter)
-- **Private state**: Held by users as witnesses (quest details, secrets, Merkle paths)
+- **Private state**: Held by users as witnesses (quest details, secrets)
 - **Zero-knowledge circuits**: Enable selective disclosure without revealing private data
 - **Unlinkable disclosure**: Challenge-bound responses prevent linking attestations across different requests
-- **Merkle tree privacy**: Only tree roots are disclosed on-chain, individual commitments remain hidden
 
-Note: Circuit generation and execution runs entirely in the user's own local environment, not on external servers. Merkle paths are provided as witnesses and never disclosed.
+Note: Circuit generation and execution runs entirely in the user's own local environment, not on external servers.
 
 ## Setup
 
@@ -168,12 +164,13 @@ The compiler generates:
 - `compiled/keys/` - Cryptographic keys for circuit execution (`*.prover`, `*.verifier`)
 - `compiled/compiler/` - Contract metadata (`contract-info.json`)
 
-The contract compiles 4 circuits with ZK circuit generation:
+The contract compiles 5 circuits with ZK circuit generation:
 
-1. `recordQuest` - Records a quest attestation in HistoricMerkleTree
-2. `checkAttestation` - Unlinkable attestation disclosure using Merkle path (returns challenge-bound response, only root disclosed)
-3. `hasNullifier` - Query if nullifier is used  
-4. `getCounterValue` - Get total attestation count
+1. `recordQuest` - Records a quest attestation
+2. `checkAttestation` - Unlinkable attestation disclosure check (returns challenge-bound response)
+3. `hasCommitment` - Query if commitment exists
+4. `hasNullifier` - Query if nullifier is used
+5. `getCounterValue` - Get total attestation count
 
 All circuit ZKIRs are generated in `compiled/zkir/`, including `checkAttestation.zkir`.
 

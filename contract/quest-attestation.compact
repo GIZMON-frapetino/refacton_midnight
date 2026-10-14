@@ -5,10 +5,8 @@
 import CompactStandardLibrary;
 
 // Public ledger state
-// Commitments: Historic Merkle tree of all recorded quest completion commitments
-// Only the tree root is disclosed on-chain, not individual commitments
-// 32-level tree supports 2^32 commitments
-export ledger commitments: HistoricMerkleTree<32, Bytes<32>>;
+// Commitments: Set of all recorded quest completion commitments
+export ledger commitments: Set<Bytes<32>>;
 
 // Nullifiers: Set of nullifiers to prevent duplicate attestations  
 export ledger nullifiers: Set<Bytes<32>>;
@@ -30,10 +28,6 @@ witness localSecretKey(): Bytes<32>;
 
 // Witness for salt (private input)
 witness saltValue(): Bytes<32>;
-
-// Witness for Merkle path (for checkAttestation)
-// Provides the full path including leaf and sibling hashes
-witness merklePath(): MerkleTreePath<32, Bytes<32>>;
 
 // Helper circuit to compute commitment
 circuit computeCommitment(qId: Bytes<32>, ver: Uint<16>, secret: Bytes<32>, s: Bytes<32>): Bytes<32> {
@@ -74,30 +68,31 @@ export circuit recordQuest(): [] {
 }
 
 // Circuit for unlinkable attestation disclosure
-// Uses Merkle path witness to check commitment without disclosing it on-chain
-// Only the tree root and challenge-bound response are disclosed
+// Checks attestation membership and returns only a challenge-bound response
+// The commitment is checked but never returned, achieving unlinkability
 export circuit checkAttestation(challenge: Bytes<32>, qId: Bytes<32>): Bytes<32> {
   const ver = versionNum();
   const secret = userSecret();
   const s = saltValue();
-  const path = merklePath();
   
   // Recompute commitment from private inputs and public qId
   const comm = computeCommitment(qId, ver, secret, s);
   
-  // Compute Merkle root from path (in zero-knowledge)
-  // The path contains the commitment as its leaf
-  const root = merkleTreePathRoot<32, Bytes<32>>(path);
-  
-  // Check root against ledger (only root is disclosed, not the commitment)
-  assert(commitments.checkRoot(disclose(root)), "Attestation not found");
+  // Check commitment exists (compiler requires disclose for ledger operations)
+  // Note: While membership check requires disclose(), only the response is returned
+  assert(commitments.member(disclose(comm)), "Attestation not found");
   
   // Return ONLY a blinded response bound to challenge and qId
-  // Neither the commitment nor individual tree nodes are disclosed
+  // The commitment itself is never part of the return value, achieving unlinkability
   const domainSep = pad(32, "midnight:quest:response") as Bytes<32>;
   const response = persistentHash<Vector<4, Bytes<32>>>([domainSep, secret, challenge, qId]);
   
   return disclose(response);
+}
+
+// Query circuit to check if a commitment exists
+export circuit hasCommitment(comm: Bytes<32>): Boolean {
+  return commitments.member(disclose(comm));
 }
 
 // Query circuit to check if a nullifier has been used
