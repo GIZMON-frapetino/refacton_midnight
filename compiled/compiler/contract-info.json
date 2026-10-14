@@ -18,15 +18,8 @@
     {
       "name": "checkAttestation",
       "pure": false,
-      "proof": false,
+      "proof": true,
       "arguments": [
-        {
-          "name": "expectedCommitment",
-          "type": {
-            "type-name": "Bytes",
-            "length": 32
-          }
-        }
       ],
       "result-type": {
         "type-name": "Tuple",

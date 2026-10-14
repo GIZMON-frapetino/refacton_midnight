@@ -68,9 +68,9 @@ export circuit recordQuest(): [] {
 }
 
 // Circuit for selective disclosure
-// User can check if they have a valid attestation for a quest
-// without revealing their secret or other details
-export circuit checkAttestation(expectedCommitment: Bytes<32>): [] {
+// User can check if they have a valid attestation for a quest on-chain
+// Recomputes commitment from witnesses and checks ledger membership
+export circuit checkAttestation(): [] {
   const qId = questId();
   const ver = versionNum();
   const secret = userSecret();
@@ -79,8 +79,8 @@ export circuit checkAttestation(expectedCommitment: Bytes<32>): [] {
   // Recompute commitment from private inputs
   const comm = computeCommitment(qId, ver, secret, s);
   
-  // Assert the computed commitment matches the expected one
-  assert(comm == expectedCommitment, "Attestation check failed");
+  // Check commitment exists in ledger (touches ledger = impure circuit with proof)
+  assert(commitments.member(disclose(comm)), "Attestation not found");
 }
 
 // Query circuit to check if a commitment exists

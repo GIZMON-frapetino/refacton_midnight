@@ -18,32 +18,34 @@ Quest Attestation is a Compact smart contract that allows users to record quest 
 
 ### Contract Structure
 
-The `QuestAttestation` contract consists of three main components stored on the public ledger:
+The `QuestAttestation` contract uses Set-based storage to support multiple users and quests:
 
-1. **Commitments** (`mapping(Bytes<32> => Bool)`): Stores cryptographic hashes of quest completions
-2. **Nullifiers** (`mapping(Bytes<32> => Bool)`): Prevents duplicate attestation records
-3. **Counter** (`Uint<32>`): Tracks total number of attestations
+1. **Commitments** (`Set<Bytes<32>>`): Set of cryptographic hashes of quest completions
+2. **Nullifiers** (`Set<Bytes<32>>`): Set of nullifiers to prevent duplicate attestation records  
+3. **Counter** (`Counter`): Tracks total number of attestations
 
 ### Private Data (Witnesses)
 
 The following data remains private and is never revealed on the blockchain:
 
 - `questId`: Unique identifier for the quest
-- `version`: Quest version number
-- `userSecret`: User's private secret
-- `salt`: Random salt for commitment generation
-- `nullifier`: Unique value to prevent double recording
+- `versionNum`: Quest version number
+- `userSecret`: User's private secret for commitment
+- `localSecretKey`: User's local secret key for nullifier derivation
+- `saltValue`: Random salt for commitment generation
 
 ### Circuits
 
 #### `recordQuest` (Zero-Knowledge Circuit)
 
-Records a quest attestation by computing a commitment from private inputs and storing it on-chain along with a nullifier. The circuit ensures:
+Records a quest attestation by computing a commitment from private inputs and storing it on-chain along with a derived nullifier. The circuit ensures:
 
-- Commitment is computed as: `hash(questId, version, userSecret, salt)`
-- Nullifier has not been used previously
+- Commitment is computed as: `persistentHash(questId, version, userSecret, salt)`
+- Nullifier is derived internally as: `persistentHash(domain_separator, localSecretKey, questId)`
+- Derived nullifier has not been used previously (prevents double recording)
 - Counter is incremented
 - Private inputs remain hidden
+- Supports multiple users and multiple quests
 
 #### `checkAttestation` (Selective Disclosure Circuit)
 

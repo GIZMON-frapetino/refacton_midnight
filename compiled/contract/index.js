@@ -104,11 +104,10 @@ export class Contract {
         return { result: result_0, context: context, proofData: partialProofData, gasCost: context.gasCost };
       },
       checkAttestation: (...args_1) => {
-        if (args_1.length !== 2) {
-          throw new __compactRuntime.CompactError(`checkAttestation: expected 2 arguments (as invoked from Typescript), received ${args_1.length}`);
+        if (args_1.length !== 1) {
+          throw new __compactRuntime.CompactError(`checkAttestation: expected 1 argument (as invoked from Typescript), received ${args_1.length}`);
         }
         const contextOrig_0 = args_1[0];
-        const expectedCommitment_0 = args_1[1];
         if (!(typeof(contextOrig_0) === 'object' && contextOrig_0.currentQueryContext != undefined)) {
           __compactRuntime.typeError('checkAttestation',
                                      'argument 1 (as invoked from Typescript)',
@@ -116,26 +115,14 @@ export class Contract {
                                      'CircuitContext',
                                      contextOrig_0)
         }
-        if (!(expectedCommitment_0.buffer instanceof ArrayBuffer && expectedCommitment_0.BYTES_PER_ELEMENT === 1 && expectedCommitment_0.length === 32)) {
-          __compactRuntime.typeError('checkAttestation',
-                                     'argument 1 (argument 2 as invoked from Typescript)',
-                                     'quest-attestation.compact line 73 char 1',
-                                     'Bytes<32>',
-                                     expectedCommitment_0)
-        }
         const context = { ...contextOrig_0, gasCost: __compactRuntime.emptyRunningCost() };
         const partialProofData = {
-          input: {
-            value: _descriptor_0.toValue(expectedCommitment_0),
-            alignment: _descriptor_0.alignment()
-          },
+          input: { value: [], alignment: [] },
           output: undefined,
           publicTranscript: [],
           privateTranscriptOutputs: []
         };
-        const result_0 = this._checkAttestation_0(context,
-                                                  partialProofData,
-                                                  expectedCommitment_0);
+        const result_0 = this._checkAttestation_0(context, partialProofData);
         partialProofData.output = { value: [], alignment: [] };
         return { result: result_0, context: context, proofData: partialProofData, gasCost: context.gasCost };
       },
@@ -240,6 +227,7 @@ export class Contract {
     };
     this.provableCircuits = {
       recordQuest: this.circuits.recordQuest,
+      checkAttestation: this.circuits.checkAttestation,
       hasCommitment: this.circuits.hasCommitment,
       hasNullifier: this.circuits.hasNullifier,
       getCounterValue: this.circuits.getCounterValue
@@ -269,6 +257,7 @@ export class Contract {
     stateValue_0 = stateValue_0.arrayPush(__compactRuntime.StateValue.newNull());
     state_0.data = new __compactRuntime.ChargedState(stateValue_0);
     state_0.setOperation('recordQuest', new __compactRuntime.ContractOperation());
+    state_0.setOperation('checkAttestation', new __compactRuntime.ContractOperation());
     state_0.setOperation('hasCommitment', new __compactRuntime.ContractOperation());
     state_0.setOperation('hasNullifier', new __compactRuntime.ContractOperation());
     state_0.setOperation('getCounterValue', new __compactRuntime.ContractOperation());
@@ -500,14 +489,29 @@ export class Contract {
                                        { ins: { cached: true, n: 1 } }]);
     return [];
   }
-  _checkAttestation_0(context, partialProofData, expectedCommitment_0) {
+  _checkAttestation_0(context, partialProofData) {
     const qId_0 = this._questId_0(context, partialProofData);
     const ver_0 = this._versionNum_0(context, partialProofData);
     const secret_0 = this._userSecret_0(context, partialProofData);
     const s_0 = this._saltValue_0(context, partialProofData);
     const comm_0 = this._computeCommitment_0(qId_0, ver_0, secret_0, s_0);
-    __compactRuntime.assert(this._equal_0(comm_0, expectedCommitment_0),
-                            'Attestation check failed');
+    __compactRuntime.assert(_descriptor_1.fromValue(__compactRuntime.queryLedgerState(context,
+                                                                                      partialProofData,
+                                                                                      [
+                                                                                       { dup: { n: 0 } },
+                                                                                       { idx: { cached: false,
+                                                                                                pushPath: false,
+                                                                                                path: [
+                                                                                                       { tag: 'value',
+                                                                                                         value: { value: _descriptor_10.toValue(0n),
+                                                                                                                  alignment: _descriptor_10.alignment() } }] } },
+                                                                                       { push: { storage: false,
+                                                                                                 value: __compactRuntime.StateValue.newCell({ value: _descriptor_0.toValue(comm_0),
+                                                                                                                                              alignment: _descriptor_0.alignment() }).encode() } },
+                                                                                       'member',
+                                                                                       { popeq: { cached: true,
+                                                                                                  result: undefined } }]).value),
+                            'Attestation not found');
     return [];
   }
   _hasCommitment_0(context, partialProofData, comm_0) {
@@ -559,10 +563,6 @@ export class Contract {
                                                                                                  alignment: _descriptor_10.alignment() } }] } },
                                                                       { popeq: { cached: true,
                                                                                  result: undefined } }]).value);
-  }
-  _equal_0(x0, y0) {
-    if (!x0.every((x, i) => y0[i] === x)) { return false; }
-    return true;
   }
 }
 export function ledger(stateOrChargedState) {
