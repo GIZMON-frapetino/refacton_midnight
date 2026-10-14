@@ -158,13 +158,48 @@ The compiler generates:
 - `compiled/keys/` - Proving and verifier keys (`*.prover`, `*.verifier`)
 - `compiled/compiler/` - Contract metadata (`contract-info.json`)
 
-The contract compiles 4 circuits:
+The contract compiles 5 circuits:
 
 1. `recordQuest` - Records a quest attestation (ZK attestation required)
 2. `checkAttestation` - Selective disclosure check
 3. `hasCommitment` - Query if commitment exists (ZK attestation required)
 4. `hasNullifier` - Query if nullifier is used (ZK attestation required)
 5. `getCounterValue` - Get counter value (ZK attestation required)
+
+### Run Tests
+
+```bash
+npm test
+```
+
+Tests use the Midnight Compact runtime with the compiled contract and cover:
+
+- **recordQuest circuit** (3 tests)
+  - Successfully record quest attestations
+  - Reject duplicate nullifier (double recording prevention)
+  - Counter increments correctly
+
+- **checkAttestation circuit** (3 tests)
+  - Pass check for existing attestation with correct inputs
+  - Fail check with wrong commitment
+  - Fail check with wrong secret (selective disclosure)
+
+- **hasCommitment circuit** (2 tests)
+  - Return true for recorded commitments
+  - Return false for non-existent commitments
+
+- **hasNullifier circuit** (2 tests)
+  - Return true for used nullifiers
+  - Return false for unused nullifiers
+
+- **getCounterValue circuit** (2 tests)
+  - Return 0 for initial state
+  - Return 1 after recording one attestation
+
+- **Privacy model** (1 test)
+  - Demonstrate selective disclosure without revealing secrets
+
+All 13 tests pass using local simulation with the compiled contract.
 
 ### Development
 

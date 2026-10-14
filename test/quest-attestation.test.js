@@ -1,275 +1,267 @@
 /**
  * Quest Attestation Contract Tests
  * 
- * Tests use the Midnight Compact runtime with the compiled contract
+ * Tests use the compiled contract with Midnight Compact runtime 0.16.0
+ * Following official Midnight example pattern for state chaining
  * 
- * Requirements: Compact toolchain 0.31.1, @midnight-ntwrk/compact-runtime 0.16.0
+ * Requirements: Compact compiler 0.31.1, @midnight-ntwrk/compact-runtime 0.16.0
  */
 
 import { describe, test, expect, beforeEach } from '@jest/globals';
 import { randomBytes } from 'crypto';
 import { Contract, ledger } from '../compiled/contract/index.js';
-import { createCircuitContext, createConstructorContext } from '@midnight-ntwrk/compact-runtime';
+import {
+  createConstructorContext,
+  createCircuitContext,
+  dummyContractAddress,
+  DUMMY_ADDRESS
+} from '@midnight-ntwrk/compact-runtime';
+
+/**
+ * Simulator class for testing the contract
+ * Manages state transitions between circuit calls using official pattern
+ */
+class ContractSimulator {
+  constructor(witnesses) {
+    this.contract = new Contract(witnesses);
+    this.privateState = {};
+    this.contractAddress = dummyContractAddress();
+    
+    // Initialize contract state
+    const initialContext = createConstructorContext(this.privateState);
+    const initialResult = this.contract.initialState(initialContext);
+    
+    // Create initial circuit context
+    this.circuitContext = createCircuitContext(
+      this.contractAddress,
+      DUMMY_ADDRESS,
+      initialResult.currentContractState,
+      this.privateState
+    );
+  }
+
+  /**
+   * Call a circuit and update the internal context
+   * Pattern: this.circuitContext = result.context
+   */
+  callCircuit(circuitName, ...args) {
+    // Call the circuit with current context
+    const result = this.contract.circuits[circuitName](this.circuitContext, ...args);
+
+    // Update context from the result (official pattern)
+    this.circuitContext = result.context;
+
+    return result;
+  }
+
+  /**
+   * Get the current ledger state
+   * Pattern: ledger(this.circuitContext.currentQueryContext.state)
+   */
+  getLedgerState() {
+    // Extract state from currentQueryContext
+    return ledger(this.circuitContext.currentQueryContext.state);
+  }
+}
 
 describe('QuestAttestation Contract', () => {
-  let contract;
-  let privateState;
+  let simulator;
   let testData;
 
   beforeEach(() => {
-    // Generate test data
+    // Generate test data as Uint8Array for consistency with contract
     testData = {
-      questId: randomBytes(32),
-      version: 1,
-      userSecret: randomBytes(32),
-      salt: randomBytes(32),
-      nullifier: randomBytes(32)
+      questId: new Uint8Array(randomBytes(32)),
+      version: 1n,
+      userSecret: new Uint8Array(randomBytes(32)),
+      salt: new Uint8Array(randomBytes(32)),
+      nullifier: new Uint8Array(randomBytes(32))
     };
 
-    // Initialize private state
-    privateState = {
-      questId: testData.questId,
-      version: testData.version,
-      userSecret: testData.userSecret,
-      salt: testData.salt
-    };
-
-    // Create contract instance with witnesses
+    // Create witnesses that return test data
     const witnesses = {
-      questId: (context) => [privateState, privateState.questId],
-      versionNum: (context) => [privateState, BigInt(privateState.version)],
-      userSecret: (context) => [privateState, privateState.userSecret],
-      saltValue: (context) => [privateState, privateState.salt]
+      questId: (context) => [{}, testData.questId],
+      versionNum: (context) => [{}, testData.version],
+      userSecret: (context) => [{}, testData.userSecret],
+      saltValue: (context) => [{}, testData.salt]
     };
 
-    contract = new Contract(witnesses);
+    simulator = new ContractSimulator(witnesses);
   });
 
-  describe('recordQuest', () => {
+  describe('recordQuest circuit', () => {
     test('should successfully record a quest attestation', () => {
-      // Get initial state
-      const initialContext = createConstructorContext(privateState);
-      const initialResult = contract.initialState(initialContext);
-      
-      // Create circuit context
-      const context = createCircuitContext(privateState, initialResult.currentContractState);
+      const initialState = simulator.getLedgerState();
+      expect(initialState.counter).toBe(0n);
+      expect(initialState.isSet).toBe(false);
 
-      // Call recordQuest circuit
-      const result = contract.circuits.recordQuest(context, testData.nullifier);
+      // Record quest
+      const result = simulator.callCircuit('recordQuest', testData.nullifier);
       
-      // Extract ledger state
-      const state = ledger(result.currentContractState);
+      // Check result structure
+      expect(result).toHaveProperty('result');
+      expect(result).toHaveProperty('context');
+      expect(result).toHaveProperty('proofData');
 
-      // Check that commitment was recorded
-      expect(state.commitment).toBeInstanceOf(Uint8Array);
-      expect(state.commitment.length).toBe(32);
-      
-      // Check that nullifier was recorded
-      expect(state.nullifier).toEqual(testData.nullifier);
-      
-      // Check that isSet flag is true
-      expect(state.isSet).toBe(true);
-      
-      // Check that counter was incremented
-      expect(state.counter).toBe(1n);
+      // Check updated state
+      const newState = simulator.getLedgerState();
+      expect(newState.isSet).toBe(true);
+      expect(newState.counter).toBe(1n);
+      expect(newState.nullifier).toEqual(testData.nullifier);
+      expect(newState.commitment).toBeInstanceOf(Uint8Array);
+      expect(newState.commitment.length).toBe(32);
     });
 
-    test('should reject recording when slot already used', () => {
-      // First recording
-      const initialContext = createConstructorContext(privateState);
-      const initialResult = contract.initialState(initialContext);
-      const context1 = createCircuitContext(privateState, initialResult.currentContractState);
-      const result1 = contract.circuits.recordQuest(context1, testData.nullifier);
-      
-      // Attempt second recording on same slot
-      const context2 = createCircuitContext(privateState, result1.currentContractState);
+    test('should reject duplicate nullifier (double recording)', () => {
+      // Record first attestation
+      simulator.callCircuit('recordQuest', testData.nullifier);
 
-      // Should fail with assertion error
+      // Attempt to record again (slot already used)
       expect(() => {
-        contract.circuits.recordQuest(context2, randomBytes(32));
-      }).toThrow();
+        simulator.callCircuit('recordQuest', randomBytes(32));
+      }).toThrow(/Slot already used/);
     });
 
     test('should increment counter correctly', () => {
-      const initialContext = createConstructorContext(privateState);
-      const initialResult = contract.initialState(initialContext);
-      const context = createCircuitContext(privateState, initialResult.currentContractState);
+      const initialState = simulator.getLedgerState();
+      expect(initialState.counter).toBe(0n);
 
-      const result = contract.circuits.recordQuest(context, testData.nullifier);
-      const state = ledger(result.currentContractState);
+      // Record attestation
+      simulator.callCircuit('recordQuest', testData.nullifier);
 
-      expect(state.counter).toBe(1n);
+      const finalState = simulator.getLedgerState();
+      expect(finalState.counter).toBe(1n);
     });
   });
 
-  describe('checkAttestation (selective disclosure)', () => {
+  describe('checkAttestation circuit (selective disclosure)', () => {
     test('should pass check for existing attestation with correct inputs', () => {
-      // First record the attestation
-      const initialContext = createConstructorContext(privateState);
-      const initialResult = contract.initialState(initialContext);
-      const context1 = createCircuitContext(privateState, initialResult.currentContractState);
-      const recordResult = contract.circuits.recordQuest(context1, testData.nullifier);
-      const recordedState = ledger(recordResult.currentContractState);
+      // Record attestation
+      simulator.callCircuit('recordQuest', testData.nullifier);
+      const state = simulator.getLedgerState();
 
-      // Now check attestation with the correct commitment
-      const context2 = createCircuitContext(privateState, recordResult.currentContractState);
-      
-      // Should not throw (assertion passes)
+      // Check attestation with correct commitment should not throw
       expect(() => {
-        contract.circuits.checkAttestation(context2, recordedState.commitment);
+        simulator.callCircuit('checkAttestation', state.commitment);
       }).not.toThrow();
-    });
-
-    test('should fail check with wrong secret', () => {
-      // Record with one set of data
-      const initialContext = createConstructorContext(privateState);
-      const initialResult = contract.initialState(initialContext);
-      const context1 = createCircuitContext(privateState, initialResult.currentContractState);
-      const recordResult = contract.circuits.recordQuest(context1, testData.nullifier);
-      const recordedState = ledger(recordResult.currentContractState);
-
-      // Try to check with different secret
-      const wrongPrivateState = {
-        ...privateState,
-        userSecret: randomBytes(32) // wrong secret
-      };
-
-      // Create new contract with wrong witnesses
-      const wrongWitnesses = {
-        questId: (context) => [wrongPrivateState, wrongPrivateState.questId],
-        versionNum: (context) => [wrongPrivateState, BigInt(wrongPrivateState.version)],
-        userSecret: (context) => [wrongPrivateState, wrongPrivateState.userSecret],
-        saltValue: (context) => [wrongPrivateState, wrongPrivateState.salt]
-      };
-      const wrongContract = new Contract(wrongWitnesses);
-
-      const context2 = createCircuitContext(wrongPrivateState, recordResult.currentContractState);
-
-      // Should fail because commitment won't match
-      expect(() => {
-        wrongContract.circuits.checkAttestation(context2, recordedState.commitment);
-      }).toThrow();
     });
 
     test('should fail check with wrong commitment', () => {
       // Record attestation
-      const initialContext = createConstructorContext(privateState);
-      const initialResult = contract.initialState(initialContext);
-      const context1 = createCircuitContext(privateState, initialResult.currentContractState);
-      const recordResult = contract.circuits.recordQuest(context1, testData.nullifier);
+      simulator.callCircuit('recordQuest', testData.nullifier);
 
-      // Try to check with wrong commitment
-      const context2 = createCircuitContext(privateState, recordResult.currentContractState);
-
+      // Check with wrong commitment should throw
+      const wrongCommitment = randomBytes(32);
       expect(() => {
-        contract.circuits.checkAttestation(context2, randomBytes(32));
-      }).toThrow();
+        simulator.callCircuit('checkAttestation', wrongCommitment);
+      }).toThrow(/Attestation check failed/);
+    });
+
+    test('should fail check with wrong secret', () => {
+      // Record with original witnesses
+      simulator.callCircuit('recordQuest', testData.nullifier);
+      const state = simulator.getLedgerState();
+
+      // Create new simulator with different secret
+      const wrongWitnesses = {
+        questId: (context) => [{}, testData.questId],
+        versionNum: (context) => [{}, testData.version],
+        userSecret: (context) => [{}, randomBytes(32)], // Different secret
+        saltValue: (context) => [{}, testData.salt]
+      };
+
+      const wrongSimulator = new ContractSimulator(wrongWitnesses);
+      // Copy the context to same state
+      wrongSimulator.circuitContext = { ...simulator.circuitContext };
+
+      // Check should fail because commitment won't match
+      expect(() => {
+        wrongSimulator.callCircuit('checkAttestation', state.commitment);
+      }).toThrow(/Attestation check failed/);
     });
   });
 
-  describe('query circuits', () => {
-    test('hasCommitment should return true for recorded commitment', () => {
+  describe('hasCommitment circuit', () => {
+    test('should return true for recorded commitment', () => {
       // Record attestation
-      const initialContext = createConstructorContext(privateState);
-      const initialResult = contract.initialState(initialContext);
-      const context1 = createCircuitContext(privateState, initialResult.currentContractState);
-      const recordResult = contract.circuits.recordQuest(context1, testData.nullifier);
-      const recordedState = ledger(recordResult.currentContractState);
+      simulator.callCircuit('recordQuest', testData.nullifier);
+      const state = simulator.getLedgerState();
 
       // Query commitment
-      const context2 = createCircuitContext(privateState, recordResult.currentContractState);
-      const hasCommResult = contract.circuits.hasCommitment(context2, recordedState.commitment);
-
-      expect(hasCommResult.value).toBe(true);
+      const result = simulator.callCircuit('hasCommitment', state.commitment);
+      expect(result.result).toBe(true);
     });
 
-    test('hasCommitment should return false for non-existent commitment', () => {
-      const initialContext = createConstructorContext(privateState);
-      const initialResult = contract.initialState(initialContext);
-      const context = createCircuitContext(privateState, initialResult.currentContractState);
-
-      const result = contract.circuits.hasCommitment(context, randomBytes(32));
-      expect(result.value).toBe(false);
+    test('should return false for non-existent commitment', () => {
+      const fakeCommitment = randomBytes(32);
+      const result = simulator.callCircuit('hasCommitment', fakeCommitment);
+      expect(result.result).toBe(false);
     });
+  });
 
-    test('hasNullifier should return true for used nullifier', () => {
+  describe('hasNullifier circuit', () => {
+    test('should return true for used nullifier', () => {
       // Record attestation
-      const initialContext = createConstructorContext(privateState);
-      const initialResult = contract.initialState(initialContext);
-      const context1 = createCircuitContext(privateState, initialResult.currentContractState);
-      const recordResult = contract.circuits.recordQuest(context1, testData.nullifier);
+      simulator.callCircuit('recordQuest', testData.nullifier);
 
       // Query nullifier
-      const context2 = createCircuitContext(privateState, recordResult.currentContractState);
-      const hasNullResult = contract.circuits.hasNullifier(context2, testData.nullifier);
-
-      expect(hasNullResult.value).toBe(true);
+      const result = simulator.callCircuit('hasNullifier', testData.nullifier);
+      expect(result.result).toBe(true);
     });
 
-    test('hasNullifier should return false for unused nullifier', () => {
-      const initialContext = createConstructorContext(privateState);
-      const initialResult = contract.initialState(initialContext);
-      const context = createCircuitContext(privateState, initialResult.currentContractState);
+    test('should return false for unused nullifier', () => {
+      const unusedNullifier = randomBytes(32);
+      const result = simulator.callCircuit('hasNullifier', unusedNullifier);
+      expect(result.result).toBe(false);
+    });
+  });
 
-      const result = contract.circuits.hasNullifier(context, randomBytes(32));
-      expect(result.value).toBe(false);
+  describe('getCounterValue circuit', () => {
+    test('should return 0 for initial state', () => {
+      const result = simulator.callCircuit('getCounterValue');
+      expect(result.result).toBe(0n);
     });
 
-    test('getCounterValue should return correct count', () => {
-      // Initial counter
-      const initialContext = createConstructorContext(privateState);
-      const initialResult = contract.initialState(initialContext);
-      const context1 = createCircuitContext(privateState, initialResult.currentContractState);
-      const initialCounterResult = contract.circuits.getCounterValue(context1);
-      expect(initialCounterResult.value).toBe(0n);
-
-      // After recording
-      const recordResult = contract.circuits.recordQuest(context1, testData.nullifier);
-      const context2 = createCircuitContext(privateState, recordResult.currentContractState);
-      const afterResult = contract.circuits.getCounterValue(context2);
-      expect(afterResult.value).toBe(1n);
+    test('should return 1 after recording one attestation', () => {
+      simulator.callCircuit('recordQuest', testData.nullifier);
+      const result = simulator.callCircuit('getCounterValue');
+      expect(result.result).toBe(1n);
     });
   });
 
   describe('privacy model', () => {
-    test('should demonstrate selective disclosure', () => {
+    test('should demonstrate selective disclosure without revealing secrets', () => {
       // Record attestation
-      const initialContext = createConstructorContext(privateState);
-      const initialResult = contract.initialState(initialContext);
-      const context1 = createCircuitContext(privateState, initialResult.currentContractState);
-      const recordResult = contract.circuits.recordQuest(context1, testData.nullifier);
-      const recordedState = ledger(recordResult.currentContractState);
+      simulator.callCircuit('recordQuest', testData.nullifier);
+      const state = simulator.getLedgerState();
 
-      // Public ledger only has commitment (hash) and nullifier
-      expect(recordedState.commitment).toBeInstanceOf(Uint8Array);
-      expect(recordedState.nullifier).toEqual(testData.nullifier);
-      expect(recordedState.isSet).toBe(true);
+      // Public ledger only has commitment (hash), nullifier, and flags
+      expect(state.commitment).toBeInstanceOf(Uint8Array);
+      expect(state.commitment.length).toBe(32);
+      expect(state.nullifier).toEqual(testData.nullifier);
+      expect(state.isSet).toBe(true);
+      expect(state.counter).toBe(1n);
 
-      // Quest details remain private (witnesses)
-      // Only the user with correct inputs can check the attestation
-      const context2 = createCircuitContext(privateState, recordResult.currentContractState);
+      // Quest details (questId, userSecret, salt) are private
+      // Only the user with correct witnesses can check the attestation
 
-      // This succeeds because we have the right private inputs
+      // User with correct witnesses can check successfully
       expect(() => {
-        contract.circuits.checkAttestation(context2, recordedState.commitment);
+        simulator.callCircuit('checkAttestation', state.commitment);
       }).not.toThrow();
 
-      // Someone without correct secret cannot check it
-      const wrongPrivateState = {
-        ...privateState,
-        userSecret: randomBytes(32)
-      };
+      // Someone without correct secret cannot check
       const wrongWitnesses = {
-        questId: (context) => [wrongPrivateState, wrongPrivateState.questId],
-        versionNum: (context) => [wrongPrivateState, BigInt(wrongPrivateState.version)],
-        userSecret: (context) => [wrongPrivateState, wrongPrivateState.userSecret],
-        saltValue: (context) => [wrongPrivateState, wrongPrivateState.salt]
+        questId: (context) => [{}, testData.questId],
+        versionNum: (context) => [{}, testData.version],
+        userSecret: (context) => [{}, randomBytes(32)],
+        saltValue: (context) => [{}, testData.salt]
       };
-      const wrongContract = new Contract(wrongWitnesses);
-      const wrongContext = createCircuitContext(wrongPrivateState, recordResult.currentContractState);
+      const wrongSimulator = new ContractSimulator(wrongWitnesses);
+      wrongSimulator.circuitContext = { ...simulator.circuitContext };
 
       expect(() => {
-        wrongContract.circuits.checkAttestation(wrongContext, recordedState.commitment);
+        wrongSimulator.callCircuit('checkAttestation', state.commitment);
       }).toThrow();
     });
   });
