@@ -98,21 +98,29 @@ Midnight's privacy model separates:
 
 - Node.js 18 or later
 - npm or yarn
-- Compact toolchain 0.31.x (compatible with Ledger 8)
+- Compact toolchain 0.31.1 (compatible with Ledger 8)
 
-### Installing Compact Toolchain 0.31.x
+### Installing Compact Toolchain 0.31.1
 
-The Compact compiler and toolchain version 0.31.x is required for this project. Follow the official Midnight documentation to install:
+Download and install the Compact compiler from the official GitHub releases:
 
 ```bash
-# Follow Midnight's official installation guide for version 0.31.x
-# The exact installation steps depend on your operating system and architecture
-# Refer to: https://docs.midnight.network/
+# Download for Linux x86_64
+curl -L -o compactc.zip https://github.com/LFDT-Minokawa/compact/releases/download/compactc-v0.31.1/compactc_v0.31.1_x86_64-unknown-linux-musl.zip
+
+# Extract
+unzip compactc.zip
 
 # Verify installation
-compact --version
-# Should show version 0.31.x
+./compactc --version
+# Output: 0.31.1
+
+./compactc --ledger-version
+# Output: ledger-8.0.2
 ```
+
+For other platforms (macOS, Linux aarch64), download the appropriate release from:
+https://github.com/LFDT-Minokawa/compact/releases/tag/compactc-v0.31.1
 
 ### Project Setup
 
@@ -129,12 +137,11 @@ cd quest-attestation-midnight
 npm install
 ```
 
-This installs the following Midnight packages (version 0.31.x):
+This installs the following Midnight package:
 
-- `@midnight-ntwrk/compact-runtime`: Compact runtime library
-- `@midnight-ntwrk/ledger`: Ledger interaction utilities
-- `@midnight-ntwrk/midnight-js-contracts`: Contract SDK
-- `@midnight-ntwrk/midnight-js-types`: TypeScript type definitions
+- `@midnight-ntwrk/compact-runtime@0.16.0`: Compact runtime library
+
+**Note**: The runtime package version (0.16.0) differs from the compiler version (0.31.1). Always use the version reported by `./compactc --runtime-version`.
 
 ### Compile the Contract
 
@@ -142,23 +149,22 @@ This installs the following Midnight packages (version 0.31.x):
 npm run compile
 ```
 
-This compiles `contract/quest-attestation.compact` using the Compact compiler version 0.31.x. The compiled contract will be output in a format ready for deployment to the Midnight network.
+This compiles `contract/quest-attestation.compact` using the Compact compiler version 0.31.1.
 
-### Run Tests
+The compiler generates:
 
-```bash
-npm test
-```
+- `compiled/contract/` - TypeScript/JavaScript bindings (`index.js`, `index.d.ts`)
+- `compiled/zkir/` - Zero-knowledge circuit descriptions (`*.zkir`, `*.bzkir`)
+- `compiled/keys/` - Proving and verifier keys (`*.prover`, `*.verifier`)
+- `compiled/compiler/` - Contract metadata (`contract-info.json`)
 
-Tests run using the Midnight simulator and cover:
+The contract compiles 4 circuits:
 
-- Recording quest attestations
-- Duplicate nullifier rejection
-- Counter increment behavior
-- Selective disclosure checks (pass/fail scenarios)
-- Privacy model validation
-
-The test suite uses local simulation and does not require network access or deployment.
+1. `recordQuest` - Records a quest attestation (ZK attestation required)
+2. `checkAttestation` - Selective disclosure check
+3. `hasCommitment` - Query if commitment exists (ZK attestation required)
+4. `hasNullifier` - Query if nullifier is used (ZK attestation required)
+5. `getCounterValue` - Get counter value (ZK attestation required)
 
 ### Development
 
@@ -176,9 +182,10 @@ npm run test:watch
 - Zero-knowledge circuits for recording and selective disclosure
 - Commitment-based privacy model
 - Nullifier-based double-spend protection
-- Local test suite with simulator
+- Successful compilation with Compact 0.31.1
+- Generated proving and verifier keys
 - Documentation and setup instructions
-- Toolchain version pinning (0.31.x for Ledger 8 compatibility)
+- Toolchain installation (0.31.1 for Ledger 8 compatibility)
 
 ### Next Steps (Not Yet Implemented)
 
@@ -192,11 +199,10 @@ npm run test:watch
 
 ## Technical Specifications
 
-- **Ledger Version**: 8
-- **Compact Version**: 0.31.x
-- **Midnight JS SDK**: 0.31.x
+- **Ledger Version**: 8.0.2
+- **Compact Compiler**: 0.31.1
+- **Runtime Package**: @midnight-ntwrk/compact-runtime 0.16.0
 - **Contract Language**: Compact
-- **Test Framework**: Jest with Node.js VM modules
 - **License**: Apache-2.0
 
 ## Contract API
