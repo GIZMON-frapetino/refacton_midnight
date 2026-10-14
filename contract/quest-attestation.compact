@@ -5,17 +5,14 @@
 import CompactStandardLibrary;
 
 // Public ledger state
-// Commitment: hash representing a quest completion
-export ledger commitment: Bytes<32>;
+// Commitments: Set of all recorded quest completion commitments
+export ledger commitments: Set<Bytes<32>>;
 
-// Nullifier: prevents duplicate attestation records
-export ledger nullifier: Bytes<32>;
+// Nullifiers: Set of nullifiers to prevent duplicate attestations  
+export ledger nullifiers: Set<Bytes<32>>;
 
 // Counter: total number of recorded quest attestations
 export ledger counter: Counter;
-
-// Flag to indicate if the current slot is used
-export ledger isSet: Boolean;
 
 // Witness for quest ID (private input)
 witness questId(): Bytes<32>;
@@ -23,36 +20,48 @@ witness questId(): Bytes<32>;
 // Witness for version (private input)
 witness versionNum(): Uint<16>;
 
-// Witness for user secret (private input)
+// Witness for user secret (private input for commitment)
 witness userSecret(): Bytes<32>;
+
+// Witness for local secret key (private input for nullifier)
+witness localSecretKey(): Bytes<32>;
 
 // Witness for salt (private input)
 witness saltValue(): Bytes<32>;
 
-// Helper circuit to compute commitment using persistent hash
+// Helper circuit to compute commitment
 circuit computeCommitment(qId: Bytes<32>, ver: Uint<16>, secret: Bytes<32>, s: Bytes<32>): Bytes<32> {
-  const verBytes = pad(32, "quest") as Bytes<32>;
+  const verBytes = pad(32, "midnight:quest:commitment") as Bytes<32>;
   return persistentHash<Vector<5, Bytes<32>>>([verBytes, qId, secret, s, (ver as Uint<32>) as Bytes<32>]);
 }
 
+// Helper circuit to derive nullifier from local secret key and quest ID
+circuit deriveNullifier(qId: Bytes<32>, localKey: Bytes<32>): Bytes<32> {
+  const domainSep = pad(32, "midnight:quest:nullifier") as Bytes<32>;
+  return persistentHash<Vector<3, Bytes<32>>>([domainSep, localKey, qId]);
+}
+
 // Circuit to record a quest attestation
-// Takes private inputs (witnesses) and publishes only the commitment and nullifier
-export circuit recordQuest(nullifierInput: Bytes<32>): [] {
-  // Can only record if slot is not set
-  assert(!isSet, "Slot already used");
-  
+// Derives nullifier internally from witnesses
+export circuit recordQuest(): [] {
   const qId = questId();
   const ver = versionNum();
   const secret = userSecret();
+  const localKey = localSecretKey();
   const s = saltValue();
   
   // Compute commitment as hash of all private inputs
   const comm = computeCommitment(qId, ver, secret, s);
   
+  // Derive nullifier from local secret key and quest ID (prevents double recording)
+  const nullifier = deriveNullifier(qId, localKey);
+  
+  // Check nullifier hasn't been used (no double recording)
+  assert(!nullifiers.member(disclose(nullifier)), "Quest already recorded by this user");
+  
   // Record commitment and nullifier on public ledger
-  commitment = disclose(comm);
-  nullifier = disclose(nullifierInput);
-  isSet = true;
+  commitments.insert(disclose(comm));
+  nullifiers.insert(disclose(nullifier));
   
   // Increment counter
   counter.increment(1);
@@ -74,14 +83,14 @@ export circuit checkAttestation(expectedCommitment: Bytes<32>): [] {
   assert(comm == expectedCommitment, "Attestation check failed");
 }
 
-// Query circuit to check if a commitment matches the stored one
+// Query circuit to check if a commitment exists
 export circuit hasCommitment(comm: Bytes<32>): Boolean {
-  return isSet && (commitment == comm);
+  return commitments.member(disclose(comm));
 }
 
-// Query circuit to check if a nullifier matches the stored one
+// Query circuit to check if a nullifier has been used
 export circuit hasNullifier(n: Bytes<32>): Boolean {
-  return isSet && (nullifier == n);
+  return nullifiers.member(disclose(n));
 }
 
 // Query circuit to get current counter value

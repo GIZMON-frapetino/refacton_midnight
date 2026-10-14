@@ -8,13 +8,6 @@
       "pure": false,
       "proof": true,
       "arguments": [
-        {
-          "name": "nullifierInput",
-          "type": {
-            "type-name": "Bytes",
-            "length": 32
-          }
-        }
       ],
       "result-type": {
         "type-name": "Tuple",
@@ -115,6 +108,15 @@
       }
     },
     {
+      "name": "localSecretKey",
+      "arguments": [
+      ],
+      "result type": {
+        "type-name": "Bytes",
+        "length": 32
+      }
+    },
+    {
       "name": "saltValue",
       "arguments": [
       ],
@@ -128,20 +130,20 @@
   ],
   "ledger": [
     {
-      "name": "commitment",
+      "name": "commitments",
       "index": 0,
       "exported": true,
-      "storage": "Cell",
+      "storage": "Set",
       "type": {
         "type-name": "Bytes",
         "length": 32
       }
     },
     {
-      "name": "nullifier",
+      "name": "nullifiers",
       "index": 1,
       "exported": true,
-      "storage": "Cell",
+      "storage": "Set",
       "type": {
         "type-name": "Bytes",
         "length": 32
@@ -152,15 +154,6 @@
       "index": 2,
       "exported": true,
       "storage": "Counter"
-    },
-    {
-      "name": "isSet",
-      "index": 3,
-      "exported": true,
-      "storage": "Cell",
-      "type": {
-        "type-name": "Boolean"
-      }
     }
   ]
 }
