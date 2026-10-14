@@ -306,10 +306,25 @@ const count = await contract.getCounter();
 - **Unlinkable disclosure**: Challenge-bound responses prevent linking attestations; the commitment itself is never revealed
 - **No cross-quest linkability**: Different quests by the same user cannot be linked on-chain
 
-## Known Limitations
+## Known privacy limitations (Wave 2 demo)
+
+This is a constraint of this demo's checking implementation reusing the same public value, not a general property of Midnight. The `checkAttestation` circuit recomputes the same commitment from fixed private inputs (questId, version, userSecret, salt) and discloses it via `Set.member(disclose(comm))` during each verification. This means:
+
+- **Names, company names, secret values, and transaction contents are not put on-chain** - these remain private as witnesses
+- **A third party without the secret could link check records** and infer timing patterns, check frequency counts, and requester activity patterns by observing the same disclosed commitment value appearing in multiple transactions
+- **This demo assumes use with a limited set of requesters** and does not guarantee production-grade anonymity or unlinkability
+- **Production use would need**:
+  - Fresh randomness per commitment to prevent reuse
+  - Review of re-identification risk from public transaction data, fees, and wallet information
+  - A Merkle-tree based unlinkable check (planned for Wave 3) that discloses only tree roots, not individual commitments
+
+**References**:
+- [How Midnight keeps data private](https://docs.midnight.network/concepts/how-midnight-works/keeping-data-private)
+- [Security best practices](https://docs.midnight.network/guides/security-best-practices)
+
+## Additional Limitations
 
 - **No issuer backing yet**: The current implementation does not include issuer signatures or attestation from trusted parties. This feature is planned for Wave 3.
-- **Transaction fee linkability**: While attestations themselves are unlinkable, transaction fees are paid from wallet addresses which may be linkable across multiple transactions on-chain.
 - **Local execution only**: This Wave 2 implementation runs in local simulation. Network deployment requires additional setup.
 
 ## Contributing
