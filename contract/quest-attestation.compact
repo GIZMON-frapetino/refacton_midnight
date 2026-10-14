@@ -1,0 +1,99 @@
+// Quest Attestation Contract for Midnight Network
+// Records quest completion on-chain without revealing personal data
+// Ledger 8 compatible (Compact 0.31.1)
+
+import CompactStandardLibrary;
+
+// Public ledger state
+// Commitments: Set of all recorded quest completion commitments
+export ledger commitments: Set<Bytes<32>>;
+
+// Nullifiers: Set of nullifiers to prevent duplicate attestations  
+export ledger nullifiers: Set<Bytes<32>>;
+
+// Counter: total number of recorded quest attestations
+export ledger counter: Counter;
+
+// Witness for quest ID (private input)
+witness questId(): Bytes<32>;
+
+// Witness for version (private input)
+witness versionNum(): Uint<16>;
+
+// Witness for user secret (private input for commitment)
+witness userSecret(): Bytes<32>;
+
+// Witness for local secret key (private input for nullifier)
+witness localSecretKey(): Bytes<32>;
+
+// Witness for salt (private input)
+witness saltValue(): Bytes<32>;
+
+// Helper circuit to compute commitment
+circuit computeCommitment(qId: Bytes<32>, ver: Uint<16>, secret: Bytes<32>, s: Bytes<32>): Bytes<32> {
+  const verBytes = pad(32, "midnight:quest:commitment") as Bytes<32>;
+  return persistentHash<Vector<5, Bytes<32>>>([verBytes, qId, secret, s, (ver as Uint<32>) as Bytes<32>]);
+}
+
+// Helper circuit to derive nullifier from local secret key and quest ID
+circuit deriveNullifier(qId: Bytes<32>, localKey: Bytes<32>): Bytes<32> {
+  const domainSep = pad(32, "midnight:quest:nullifier") as Bytes<32>;
+  return persistentHash<Vector<3, Bytes<32>>>([domainSep, localKey, qId]);
+}
+
+// Circuit to record a quest attestation
+// Derives nullifier internally from witnesses
+export circuit recordQuest(): [] {
+  const qId = questId();
+  const ver = versionNum();
+  const secret = userSecret();
+  const localKey = localSecretKey();
+  const s = saltValue();
+  
+  // Compute commitment as hash of all private inputs
+  const comm = computeCommitment(qId, ver, secret, s);
+  
+  // Derive nullifier from local secret key and quest ID (prevents double recording)
+  const nullifier = deriveNullifier(qId, localKey);
+  
+  // Check nullifier hasn't been used (no double recording)
+  assert(!nullifiers.member(disclose(nullifier)), "Quest already recorded by this user");
+  
+  // Record commitment and nullifier on public ledger
+  commitments.insert(disclose(comm));
+  nullifiers.insert(disclose(nullifier));
+  
+  // Increment counter
+  counter.increment(1);
+}
+
+// Circuit for selective disclosure
+// User can check if they have a valid attestation for a quest on-chain
+// Recomputes commitment from witnesses and checks ledger membership
+export circuit checkAttestation(): [] {
+  const qId = questId();
+  const ver = versionNum();
+  const secret = userSecret();
+  const s = saltValue();
+  
+  // Recompute commitment from private inputs
+  const comm = computeCommitment(qId, ver, secret, s);
+  
+  // Check commitment exists in ledger (touches ledger = impure circuit with proof)
+  assert(commitments.member(disclose(comm)), "Attestation not found");
+}
+
+// Query circuit to check if a commitment exists
+export circuit hasCommitment(comm: Bytes<32>): Boolean {
+  return commitments.member(disclose(comm));
+}
+
+// Query circuit to check if a nullifier has been used
+export circuit hasNullifier(n: Bytes<32>): Boolean {
+  return nullifiers.member(disclose(n));
+}
+
+// Query circuit to get current counter value
+export circuit getCounterValue(): Field {
+  return counter;
+}

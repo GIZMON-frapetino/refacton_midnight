@@ -1,0 +1,35 @@
+{
+  "name": "quest-attestation-midnight",
+  "version": "1.0.0",
+  "description": "Quest Attestation Contract for Midnight Network - Buildathon Wave 2",
+  "main": "index.js",
+  "scripts": {
+    "compile": "./compactc contract/quest-attestation.compact ./compiled",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch"
+  },
+  "keywords": [
+    "midnight",
+    "compact",
+    "attestation",
+    "buildathon"
+  ],
+  "author": "",
+  "license": "Apache-2.0",
+  "type": "module",
+  "dependencies": {
+    "@midnight-ntwrk/compact-runtime": "^0.16.0"
+  },
+  "devDependencies": {
+    "@jest/globals": "^29.7.0",
+    "@types/jest": "^29.5.12",
+    "@types/node": "^20.11.19",
+    "jest": "^29.7.0",
+    "typescript": "^5.3.3"
+  },
+  "midnight": {
+    "compiler": "0.31.1",
+    "ledger": "8.0.2",
+    "runtime": "0.16.0"
+  }
+}
