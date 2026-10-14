@@ -1,101 +1,130 @@
-# Compact Toolchain Requirements
+# Compact Toolchain - Installation and Usage
 
-## Required Toolchain Version
+## Installed Toolchain Versions
 
-This project requires **Compact toolchain version 0.31.x** for compatibility with Midnight Network Ledger 8 (production).
+This project uses the following Midnight Network toolchain versions:
 
-## Current Status
+- **Compact Compiler**: 0.31.1
+- **Ledger Version**: 8.0.2 (Ledger 8, production)
+- **Runtime Package**: @midnight-ntwrk/compact-runtime 0.16.0
 
-### Toolchain Availability
+## Installation
 
-The Compact compiler (`compact` binary) is not currently available in this development environment. The toolchain needs to be installed separately according to Midnight Network's official documentation.
+### Compact Compiler 0.31.1
 
-### Package Availability
-
-Midnight Network npm packages at version 0.31.x are not yet available in the public npm registry:
-
-- Latest available version: `0.20.0`
-- Required version: `^0.31.0`
-
-Required packages:
-- `@midnight-ntwrk/compact-runtime@^0.31.0` - Runtime library for compiled contracts
-- `@midnight-ntwrk/ledger@^0.31.0` - Ledger interaction utilities
-- `@midnight-ntwrk/midnight-js-contracts@^0.31.0` - Contract SDK for deployment and interaction
-- `@midnight-ntwrk/midnight-js-types@^0.31.0` - TypeScript type definitions
-
-## Installation Requirements
-
-To use this project, you need to:
-
-1. **Install Compact Toolchain 0.31.x**
-   - Follow the official Midnight Network documentation
-   - Installation method depends on your operating system
-   - Verify installation with: `compact --version`
-
-2. **Configure npm Registry** (if required)
-   - Midnight packages may require authentication or private registry access
-   - Configure `.npmrc` if packages are in a private registry
-
-3. **Install Project Dependencies**
-   ```bash
-   # After toolchain is available
-   npm install @midnight-ntwrk/compact-runtime@^0.31.0
-   npm install @midnight-ntwrk/ledger@^0.31.0
-   npm install @midnight-ntwrk/midnight-js-contracts@^0.31.0
-   npm install @midnight-ntwrk/midnight-js-types@^0.31.0
-   ```
-
-## Compilation Process
-
-Once the toolchain is installed, compilation should work as follows:
+The Compact compiler is installed from the official GitHub releases:
 
 ```bash
-# Compile the contract
-npm run compile
+# Download compiler for Linux x86_64
+curl -L -o compactc.zip https://github.com/LFDT-Minokawa/compact/releases/download/compactc-v0.31.1/compactc_v0.31.1_x86_64-unknown-linux-musl.zip
 
-# Expected output structure:
-# - contract/quest-attestation.compact.js (compiled contract module)
-# - contract/quest-attestation.compact.d.ts (TypeScript definitions)
+# Extract
+unzip compactc.zip
+
+# The extracted files include:
+# - compactc: Compiler wrapper script
+# - compactc.bin: Compiler binary
+# - zkir, zkir-v3: Zero-knowledge intermediate representation tools
+# - format-compact, fixup-compact: Code formatting utilities
 ```
 
-The Compact compiler:
-1. Parses the `.compact` source file
-2. Generates zero-knowledge circuit code
-3. Produces JavaScript/TypeScript output for runtime execution
-4. Validates circuit correctness and type safety
+Verify installation:
 
-## Testing Without Toolchain
+```bash
+./compactc --version
+# Output: 0.31.1
 
-The current test suite uses a **mock simulator** that demonstrates the contract logic without requiring the actual Midnight toolchain. This allows:
+./compactc --ledger-version
+# Output: ledger-8.0.2
 
-- Validation of contract logic
-- Testing of state transitions
-- Demonstration of privacy model
-- Example usage patterns
+./compactc --runtime-version
+# Output: 0.16.0
+```
 
-All 14 tests pass with the mock implementation.
+### Midnight Runtime Package
 
-## Verification Needed
+The Compact runtime package version is determined by the compiler's `--runtime-version` output:
 
-Once the toolchain becomes available, the following should be verified:
+```bash
+npm install @midnight-ntwrk/compact-runtime@0.16.0
+```
 
-1. **Compilation**: Contract compiles without errors
-2. **Type Checking**: Generated TypeScript types are correct
-3. **Runtime Tests**: Tests work with actual Midnight simulator
-4. **Circuit Validation**: Zero-knowledge circuits generate valid attestations
-5. **Ledger Compatibility**: Contract works with Ledger 8
+**Important**: Package versions do not match compiler versions. The compiler version is 0.31.1, but the required runtime package is 0.16.0. Always use the version reported by `./compactc --runtime-version`.
+
+## Compilation
+
+Compile the contract:
+
+```bash
+npm run compile
+```
+
+This executes:
+
+```bash
+./compactc contract/quest-attestation.compact ./compiled
+```
+
+The compiler generates:
+
+- `compiled/contract/` - TypeScript/JavaScript contract bindings
+  - `index.js` - Contract implementation
+  - `index.d.ts` - TypeScript type definitions
+  - `index.js.map` - Source maps
+- `compiled/zkir/` - Zero-knowledge intermediate representation
+  - `*.zkir` - Circuit descriptions
+  - `*.bzkir` - Binary circuit format
+- `compiled/keys/` - Cryptographic keys
+  - `*.prover` - Proving keys for generating attestations
+  - `*.verifier` - Verifier keys for checking attestations
+- `compiled/compiler/` - Compiler metadata
+  - `contract-info.json` - Contract specification
+
+### Compilation Output
+
+The contract compiles successfully and generates 4 circuits:
+
+1. **recordQuest** (requires ZK attestation) - Records a quest attestation
+2. **checkAttestation** (no ZK attestation) - Selective disclosure check
+3. **hasCommitment** (requires ZK attestation) - Query if commitment exists
+4. **hasNullifier** (requires ZK attestation) - Query if nullifier is used
+5. **getCounterValue** (requires ZK attestation) - Get total attestation count
+
+## Contract Architecture
+
+### Ledger State (Public)
+
+- `commitment: Bytes<32>` - Cryptographic hash of quest completion
+- `nullifier: Bytes<32>` - Unique identifier to prevent duplicate records
+- `counter: Counter` - Total number of attestations
+- `isSet: Boolean` - Whether the current slot is used
+
+### Witnesses (Private)
+
+- `questId(): Bytes<32>` - Quest identifier
+- `versionNum(): Uint<16>` - Quest version
+- `userSecret(): Bytes<32>` - User's secret
+- `saltValue(): Bytes<32>` - Random salt
+
+### Privacy Model
+
+The commitment is computed as:
+
+```
+commitment = persistentHash([pad("quest"), questId, userSecret, salt, version])
+```
+
+All private inputs (quest details, user secret) remain as witnesses on the user's device. Only the commitment hash appears on the public ledger, preserving privacy while enabling selective disclosure.
+
+## Platform Support
+
+The Compact compiler is available for:
+
+- Linux: x86_64, aarch64
+- macOS: Apple Silicon (aarch64), Intel (x86_64)
 
 ## References
 
-- Midnight Network Documentation: https://docs.midnight.network/
-- Compact Language Specification: (refer to official docs)
-- Ledger 8 Compatibility Guide: (refer to official docs)
-
-## Notes for Buildathon Wave 2
-
-This project is ready for deployment once:
-- Compact toolchain 0.31.x becomes available for installation
-- Midnight JS packages version 0.31.x are published to npm
-- Registry access is configured (if required)
-
-The contract code and test structure are complete and follow best practices for Midnight Network development.
+- Compact Repository: https://github.com/LFDT-Minokawa/compact
+- Compact Releases: https://github.com/LFDT-Minokawa/compact/releases
+- Midnight Network: https://midnight.network

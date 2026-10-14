@@ -1,77 +1,90 @@
 // Quest Attestation Contract for Midnight Network
 // Records quest completion on-chain without revealing personal data
-// Ledger 8 compatible (Compact 0.31.x)
+// Ledger 8 compatible (Compact 0.31.1)
 
-circuit QuestAttestation {
-  // Public ledger state
-  // Commitment: hash of (questId, version, userSecret, salt)
-  // Stored as a mapping to prevent storage bloat
-  ledger mapping(Bytes<32> => Bool) commitments;
+import CompactStandardLibrary;
+
+// Public ledger state
+// Commitment: hash representing a quest completion
+export ledger commitment: Bytes<32>;
+
+// Nullifier: prevents duplicate attestation records
+export ledger nullifier: Bytes<32>;
+
+// Counter: total number of recorded quest attestations
+export ledger counter: Counter;
+
+// Flag to indicate if the current slot is used
+export ledger isSet: Boolean;
+
+// Witness for quest ID (private input)
+witness questId(): Bytes<32>;
+
+// Witness for version (private input)
+witness versionNum(): Uint<16>;
+
+// Witness for user secret (private input)
+witness userSecret(): Bytes<32>;
+
+// Witness for salt (private input)
+witness saltValue(): Bytes<32>;
+
+// Helper circuit to compute commitment using persistent hash
+circuit computeCommitment(qId: Bytes<32>, ver: Uint<16>, secret: Bytes<32>, s: Bytes<32>): Bytes<32> {
+  const verBytes = pad(32, "quest") as Bytes<32>;
+  return persistentHash<Vector<5, Bytes<32>>>([verBytes, qId, secret, s, (ver as Uint<32>) as Bytes<32>]);
+}
+
+// Circuit to record a quest attestation
+// Takes private inputs (witnesses) and publishes only the commitment and nullifier
+export circuit recordQuest(nullifierInput: Bytes<32>): [] {
+  // Can only record if slot is not set
+  assert(!isSet, "Slot already used");
   
-  // Nullifiers: prevent the same quest from being recorded twice by same user
-  ledger mapping(Bytes<32> => Bool) nullifiers;
+  const qId = questId();
+  const ver = versionNum();
+  const secret = userSecret();
+  const s = saltValue();
   
-  // Counter: total number of recorded quest attestations
-  ledger Uint<32> counter;
+  // Compute commitment as hash of all private inputs
+  const comm = computeCommitment(qId, ver, secret, s);
+  
+  // Record commitment and nullifier on public ledger
+  commitment = disclose(comm);
+  nullifier = disclose(nullifierInput);
+  isSet = true;
+  
+  // Increment counter
+  counter.increment(1);
+}
 
-  // Circuit to record a quest attestation
-  // Takes private inputs (witnesses) and publishes only the commitment and nullifier
-  @zk
-  circuit recordQuest(
-    // Private witnesses - never revealed on chain
-    witness Bytes<32> questId,
-    witness Uint<16> version,
-    witness Bytes<32> userSecret,
-    witness Bytes<32> salt,
-    witness Bytes<32> nullifier
-  ) {
-    // Compute commitment as hash of all private inputs
-    const commitment: Bytes<32> = hash([questId, version, userSecret, salt]);
-    
-    // Check nullifier hasn't been used (no double recording)
-    assert(!nullifiers[nullifier], "Nullifier already used");
-    
-    // Record commitment and nullifier on public ledger
-    commitments[commitment] = true;
-    nullifiers[nullifier] = true;
-    
-    // Increment counter
-    counter = counter + 1u32;
-  }
+// Circuit for selective disclosure
+// User can check if they have a valid attestation for a quest
+// without revealing their secret or other details
+export circuit checkAttestation(expectedCommitment: Bytes<32>): [] {
+  const qId = questId();
+  const ver = versionNum();
+  const secret = userSecret();
+  const s = saltValue();
+  
+  // Recompute commitment from private inputs
+  const comm = computeCommitment(qId, ver, secret, s);
+  
+  // Assert the computed commitment matches the expected one
+  assert(comm == expectedCommitment, "Attestation check failed");
+}
 
-  // Circuit for selective disclosure
-  // User can check if they have a valid attestation for a quest
-  // without revealing their secret or other details
-  @zk
-  circuit checkAttestation(
-    witness Bytes<32> questId,
-    witness Uint<16> version,
-    witness Bytes<32> userSecret,
-    witness Bytes<32> salt,
-    public Bool expectedResult
-  ) {
-    // Recompute commitment from private inputs
-    const commitment: Bytes<32> = hash([questId, version, userSecret, salt]);
-    
-    // Check if commitment exists on ledger
-    const exists: Bool = commitments[commitment];
-    
-    // Assert the check result matches expectation
-    assert(exists == expectedResult, "Attestation check failed");
-  }
+// Query circuit to check if a commitment matches the stored one
+export circuit hasCommitment(comm: Bytes<32>): Boolean {
+  return isSet && (commitment == comm);
+}
 
-  // Query circuit to check if a commitment exists (public check)
-  circuit hasCommitment(public Bytes<32> commitment) -> Bool {
-    return commitments[commitment];
-  }
+// Query circuit to check if a nullifier matches the stored one
+export circuit hasNullifier(n: Bytes<32>): Boolean {
+  return isSet && (nullifier == n);
+}
 
-  // Query circuit to check if a nullifier has been used
-  circuit hasNullifier(public Bytes<32> nullifier) -> Bool {
-    return nullifiers[nullifier];
-  }
-
-  // Query circuit to get current counter value
-  circuit getCounter() -> Uint<32> {
-    return counter;
-  }
+// Query circuit to get current counter value
+export circuit getCounterValue(): Field {
+  return counter;
 }

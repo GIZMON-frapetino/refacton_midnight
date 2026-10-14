@@ -6,8 +6,15 @@ yarn.lock
 # Build outputs
 dist/
 build/
-*.compact.js
-*.compact.d.ts
+
+# Compact compiler binary
+compactc
+compactc.bin
+compactc.zip
+fixup-compact
+format-compact
+zkir
+zkir-v3
 
 # Test coverage
 coverage/
