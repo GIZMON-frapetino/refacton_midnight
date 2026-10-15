@@ -75,8 +75,8 @@ The compiler generates:
   - `*.zkir` - Circuit descriptions
   - `*.bzkir` - Binary circuit format
 - `compiled/keys/` - Cryptographic keys
-  - `*.prover` - Proving keys for generating attestations
-  - `*.verifier` - Verifier keys for checking attestations
+  - `*.prover` - Keys for generating circuit executions
+  - `*.verifier` - Keys for checking circuit results
 - `compiled/compiler/` - Compiler metadata
   - `contract-info.json` - Contract specification
 

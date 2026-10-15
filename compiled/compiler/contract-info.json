@@ -20,11 +20,24 @@
       "pure": false,
       "proof": true,
       "arguments": [
+        {
+          "name": "challenge",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        },
+        {
+          "name": "qId",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        }
       ],
       "result-type": {
-        "type-name": "Tuple",
-        "types": [
-        ]
+        "type-name": "Bytes",
+        "length": 32
       }
     },
     {
