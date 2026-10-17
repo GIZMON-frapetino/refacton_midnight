@@ -1,10 +1,10 @@
-import { register } from 'node:module';
-import { pathToFileURL } from 'node:url';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { register, createRequire } from 'node:module';
 
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const require = createRequire(import.meta.url);
 
-register('@midnight-ntwrk/compact-runtime', pathToFileURL(
-  path.join(repoRoot, 'node_modules/@midnight-ntwrk/compact-runtime/dist/index.js')
-));
+register('./runtime-loader.mjs', import.meta.url, {
+  data: {
+    '@midnight-ntwrk/compact-runtime': require.resolve('@midnight-ntwrk/compact-runtime'),
+    '@midnight-ntwrk/onchain-runtime-v3': require.resolve('@midnight-ntwrk/onchain-runtime-v3'),
+  },
+});

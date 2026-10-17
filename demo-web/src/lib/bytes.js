@@ -11,9 +11,15 @@ export function bytesToHex(bytes) {
 }
 
 export function hexToBytes(hex) {
+  if (typeof hex !== 'string') {
+    throw new Error('Expected a hex string');
+  }
   const cleaned = hex.replace(/^0x/i, '').replace(/\s/g, '');
   if (cleaned.length !== 64) {
     throw new Error('Expected 32 bytes (64 hex characters)');
+  }
+  if (!/^[0-9a-f]{64}$/i.test(cleaned)) {
+    throw new Error('Invalid hex');
   }
   const out = new Uint8Array(32);
   for (let i = 0; i < 32; i++) {

@@ -1,35 +1,34 @@
 import { useState } from 'react';
-import {
-  ContractSimulator,
-  createCheckWitnesses,
-  createSellerWitnesses,
-  ledgerSnapshot,
-  materialFromExport,
-} from '../lib/simulator.js';
-import { bytesToHex, hexToBytes, randomBytes32 } from '../lib/bytes.js';
+import { checkSession, validateSession } from '../lib/session.js';
+import { bytesToHex, randomBytes32 } from '../lib/bytes.js';
 import LedgerPanel from './LedgerPanel.jsx';
 import DemoLog from './DemoLog.jsx';
 
 export default function BuyerFlow({ session, onSessionChange, appendLog, ledgerView, demoLog }) {
   const [questIdInput, setQuestIdInput] = useState(session?.questIdHex ?? '');
   const [challengeInput, setChallengeInput] = useState('');
+  const [differentSecret, setDifferentSecret] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
+  function clearResult() {
+    setResult(null);
+    setError('');
+  }
+
   function randomChallenge() {
-    const c = randomBytes32();
-    setChallengeInput(bytesToHex(c));
+    clearResult();
+    setChallengeInput(bytesToHex(randomBytes32()));
   }
 
   async function importSessionFile(file) {
-    setError('');
+    clearResult();
     try {
-      const text = await file.text();
-      const data = JSON.parse(text);
-      if (!data.questIdHex) throw new Error('Invalid session file');
-      onSessionChange({ ...data, recorded: Boolean(data.recorded) });
+      const data = validateSession(JSON.parse(await file.text()));
+      onSessionChange(data);
       setQuestIdInput(data.questIdHex);
+      setDifferentSecret(false);
       appendLog('Buyer imported seller session file (secrets stored locally, not shown here).');
       if (!data.recorded) {
         appendLog('Session file has no record yet — seller must complete recordQuest first.');
@@ -39,35 +38,15 @@ export default function BuyerFlow({ session, onSessionChange, appendLog, ledgerV
     }
   }
 
-  function rebuildSimulator() {
-    if (!session?.recorded) {
-      throw new Error('No seller record in this browser session. Complete seller flow or import a session file.');
-    }
-    const material = materialFromExport(session);
-    const sim = new ContractSimulator(createSellerWitnesses(material));
-    sim.callCircuit('recordQuest');
-    return { sim, material };
-  }
-
   async function runCheck() {
-    setError('');
-    setResult(null);
+    clearResult();
     setBusy(true);
     try {
-      const questId = hexToBytes(questIdInput.trim());
-      const challenge = hexToBytes(challengeInput.trim());
-      const { sim, material } = rebuildSimulator();
-      sim.contract.witnesses = createCheckWitnesses(material);
-      const checkResult = sim.callCircuit('checkAttestation', challenge, questId);
-      const responseHex = bytesToHex(checkResult.result);
-      setResult({ status: 'match', responseHex });
+      const checked = checkSession(session, questIdInput, challengeInput, differentSecret);
+      setResult({ status: 'match', responseHex: checked.responseHex });
       appendLog('Buyer checkAttestation succeeded (match).');
-      appendLog(`Response (challenge-bound): ${responseHex.slice(0, 16)}…`);
-      onSessionChange({
-        ...session,
-        ledger: ledgerSnapshot(sim),
-        lastResponseHex: responseHex,
-      });
+      appendLog(`Response (challenge-bound): ${checked.responseHex.slice(0, 16)}…`);
+      onSessionChange({ ...session, ledger: checked.ledger, lastResponseHex: checked.responseHex });
     } catch (e) {
       const msg = e?.message || String(e);
       if (/Attestation not found/i.test(msg)) {
@@ -77,6 +56,7 @@ export default function BuyerFlow({ session, onSessionChange, appendLog, ledgerV
         setError(msg);
         appendLog(`Buyer check failed: ${msg}`);
       }
+      if (session?.recorded) onSessionChange({ ...session, lastResponseHex: null });
     } finally {
       setBusy(false);
     }
@@ -89,8 +69,8 @@ export default function BuyerFlow({ session, onSessionChange, appendLog, ledgerV
           Buyer check <span className="contract-tag">contract</span>
         </h2>
         <p className="note">
-          Enter the quest id and a challenge. The check uses seller material from this browser session
-          or an imported session file; secrets are never shown on this screen.
+          Enter the quest id and a challenge. The check uses the saved seller ledger and material
+          from this browser session or an imported file; secrets are never shown on this screen.
         </p>
 
         <label className="field" htmlFor="session-file">
@@ -113,7 +93,7 @@ export default function BuyerFlow({ session, onSessionChange, appendLog, ledgerV
           id="quest-id"
           type="text"
           value={questIdInput}
-          onChange={(e) => setQuestIdInput(e.target.value)}
+          onChange={(e) => { clearResult(); setQuestIdInput(e.target.value); }}
           placeholder="64 hex characters"
           spellCheck={false}
         />
@@ -125,13 +105,23 @@ export default function BuyerFlow({ session, onSessionChange, appendLog, ledgerV
           id="challenge"
           type="text"
           value={challengeInput}
-          onChange={(e) => setChallengeInput(e.target.value)}
+          onChange={(e) => { clearResult(); setChallengeInput(e.target.value); }}
           placeholder="64 hex characters"
           spellCheck={false}
         />
         <button type="button" className="secondary" onClick={randomChallenge}>
           Generate random challenge
         </button>
+
+        <label className="field" htmlFor="different-secret">
+          <input
+            id="different-secret"
+            type="checkbox"
+            checked={differentSecret}
+            onChange={(e) => { clearResult(); setDifferentSecret(e.target.checked); }}
+          />{' '}
+          Use a different secret (negative check; secret stays hidden)
+        </label>
 
         <button
           type="button"
@@ -144,16 +134,16 @@ export default function BuyerFlow({ session, onSessionChange, appendLog, ledgerV
 
         {result?.status === 'match' && (
           <div className="result match" role="status">
-            <strong>Match</strong> — attestation found for this quest id.
+            <strong>Match — 合う</strong> — attestation found for this quest id.
             <div className="note">Challenge-bound response: {result.responseHex}</div>
           </div>
         )}
         {result?.status === 'no-match' && (
           <div className="result no-match" role="status">
-            <strong>No match</strong> — {result.detail || 'Attestation not found'}
+            <strong>No match — 合わない</strong> — {result.detail || 'Attestation not found'}
           </div>
         )}
-        {error && <p className="note" style={{ color: 'var(--danger)' }}>{error}</p>}
+        {error && <p className="note" role="alert" style={{ color: 'var(--danger)' }}>{error}</p>}
 
         <p className="note">
           Linking note: checking the same on-ledger record again may disclose the same commitment,

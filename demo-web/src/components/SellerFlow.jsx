@@ -1,12 +1,10 @@
 import { useMemo, useState } from 'react';
 import {
-  ContractSimulator,
-  createSellerWitnesses,
   exportMaterial,
-  ledgerSnapshot,
   materialFromExport,
 } from '../lib/simulator.js';
-import { bytesToHex, randomBytes32, truncateHex } from '../lib/bytes.js';
+import { recordSession } from '../lib/session.js';
+import { randomBytes32, truncateHex } from '../lib/bytes.js';
 import LedgerPanel from './LedgerPanel.jsx';
 import DemoLog from './DemoLog.jsx';
 
@@ -38,14 +36,8 @@ export default function SellerFlow({ session, onSessionChange, appendLog, ledger
   );
 
   function ensureMaterial() {
-    if (session?.material) {
-      return materialFromExport({
-        questIdHex: session.questIdHex,
-        versionNum: session.versionNum,
-        userSecretHex: session.userSecretHex,
-        localSecretKeyHex: session.localSecretKeyHex,
-        saltHex: session.saltHex,
-      });
+    if (session?.questIdHex) {
+      return materialFromExport(session);
     }
     const material = {
       questId: randomBytes32(),
@@ -81,19 +73,11 @@ export default function SellerFlow({ session, onSessionChange, appendLog, ledger
     setBusy(true);
     try {
       const material = ensureMaterial();
-      const sim = new ContractSimulator(createSellerWitnesses(material));
-      const result = sim.callCircuit('recordQuest');
-      const snap = ledgerSnapshot(sim);
-      const exported = exportMaterial(material);
-      onSessionChange({
-        ...exported,
-        recorded: true,
-        ledger: snap,
-        circuitOk: Boolean(result?.context),
-      });
+      const recorded = recordSession(session ?? { ...exportMaterial(material), recorded: false });
+      onSessionChange(recorded);
       setStep(3);
       appendLog('Seller called recordQuest on the local contract simulator.');
-      appendLog(`Ledger counter is now ${snap.counter}.`);
+      appendLog(`Ledger counter is now ${recorded.ledger.counter}.`);
     } catch (e) {
       setError(e?.message || String(e));
       appendLog(`recordQuest failed: ${e?.message || e}`);

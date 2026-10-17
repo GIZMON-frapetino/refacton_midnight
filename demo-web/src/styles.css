@@ -264,6 +264,7 @@ textarea {
   font-size: 0.82rem;
   color: var(--muted);
   margin-top: 0.75rem;
+  overflow-wrap: anywhere;
 }
 
 .badge {

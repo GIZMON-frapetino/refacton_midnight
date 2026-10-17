@@ -1,6 +1,7 @@
 import { Contract, ledger } from '../../../compiled/contract/index.js';
-import { bytesToHex } from './bytes.js';
+import { bytesToHex, hexToBytes } from './bytes.js';
 import {
+  ContractState,
   createConstructorContext,
   createCircuitContext,
   dummyContractAddress,
@@ -8,18 +9,19 @@ import {
 } from '@midnight-ntwrk/compact-runtime';
 
 export class ContractSimulator {
-  constructor(witnesses) {
+  constructor(witnesses, publicStateHex = null) {
     this.contract = new Contract(witnesses);
     this.privateState = {};
     this.contractAddress = dummyContractAddress();
 
-    const initialContext = createConstructorContext(this.privateState);
-    const initialResult = this.contract.initialState(initialContext);
+    const state = publicStateHex === null
+      ? this.contract.initialState(createConstructorContext(this.privateState)).currentContractState
+      : ContractState.deserialize(stateBytes(publicStateHex));
 
     this.circuitContext = createCircuitContext(
       this.contractAddress,
       DUMMY_ADDRESS,
-      initialResult.currentContractState,
+      state,
       this.privateState
     );
   }
@@ -33,6 +35,19 @@ export class ContractSimulator {
   getLedgerState() {
     return ledger(this.circuitContext.currentQueryContext.state);
   }
+
+  exportPublicState() {
+    const state = new ContractState();
+    state.data = this.circuitContext.currentQueryContext.state;
+    return bytesToHex(state.serialize());
+  }
+}
+
+function stateBytes(hex) {
+  if (typeof hex !== 'string' || hex.length > 2 * 1024 * 1024 || !/^(?:[0-9a-f]{2})+$/i.test(hex)) {
+    throw new Error('Invalid saved public ledger. Complete the seller flow again.');
+  }
+  return Uint8Array.from(hex.match(/.{2}/g), (byte) => parseInt(byte, 16));
 }
 
 export function createSellerWitnesses(material) {
@@ -57,44 +72,31 @@ export function createCheckWitnesses(material) {
 
 export function ledgerSnapshot(sim) {
   const state = sim.getLedgerState();
-  const commitments = [...state.commitments].map(bytesToHexFromBytes);
-  const nullifiers = [...state.nullifiers].map(bytesToHexFromBytes);
   return {
     counter: state.counter.toString(),
-    commitments,
-    nullifiers,
+    commitments: [...state.commitments].map(bytesToHex),
+    nullifiers: [...state.nullifiers].map(bytesToHex),
   };
-}
-
-function bytesToHexFromBytes(bytes) {
-  return Array.from(bytes)
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
 }
 
 export function materialFromExport(obj) {
-  const versionRaw = obj.versionNum ?? obj.version ?? '1';
-  return {
-    questId: hexToBytesImport(obj.questIdHex),
-    version: BigInt(versionRaw),
-    userSecret: hexToBytesImport(obj.userSecretHex),
-    localSecretKey: hexToBytesImport(obj.localSecretKeyHex),
-    salt: hexToBytesImport(obj.saltHex),
-  };
-}
-
-function hexToBytesImport(hex) {
-  const cleaned = String(hex).replace(/^0x/i, '');
-  const out = new Uint8Array(32);
-  for (let i = 0; i < 32; i++) {
-    out[i] = parseInt(cleaned.slice(i * 2, i * 2 + 2), 16);
+  if (!obj || typeof obj !== 'object') throw new Error('Invalid session file');
+  const versionRaw = String(obj.versionNum ?? obj.version ?? '');
+  if (!/^\d+$/.test(versionRaw) || BigInt(versionRaw) > 18446744073709551615n) {
+    throw new Error('Invalid session version');
   }
-  return out;
+  return {
+    questId: hexToBytes(obj.questIdHex),
+    version: BigInt(versionRaw),
+    userSecret: hexToBytes(obj.userSecretHex),
+    localSecretKey: hexToBytes(obj.localSecretKeyHex),
+    salt: hexToBytes(obj.saltHex),
+  };
 }
 
 export function exportMaterial(material) {
   return {
-    format: 'quest-attestation-demo-session-v1',
+    format: 'quest-attestation-demo-session-v2',
     questIdHex: bytesToHex(material.questId),
     versionNum: String(material.version),
     userSecretHex: bytesToHex(material.userSecret),

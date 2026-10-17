@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import SellerFlow from './components/SellerFlow.jsx';
 import BuyerFlow from './components/BuyerFlow.jsx';
+import { validateSession } from './lib/session.js';
 
 const SESSION_KEY = 'quest-attestation-demo-session';
 
@@ -96,7 +97,7 @@ export default function App() {
 function loadSession() {
   try {
     const raw = sessionStorage.getItem(SESSION_KEY);
-    return raw ? JSON.parse(raw) : null;
+    return raw ? validateSession(JSON.parse(raw)) : null;
   } catch {
     return null;
   }
