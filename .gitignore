@@ -1,6 +1,7 @@
 # Dependencies
 node_modules/
 package-lock.json
+!demo-web/package-lock.json
 yarn.lock
 
 # Build outputs
