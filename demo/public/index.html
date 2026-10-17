@@ -29,38 +29,61 @@
     <main class="workspace">
       <section class="private-panel panel" aria-labelledby="private-heading">
         <div class="panel-heading"><div><p class="eyebrow">SELLER / 手元</p><h2 id="private-heading">中身は、手元に。</h2></div><span class="tag">witness</span></div>
-        <div class="quest-card"><span class="quest-icon">60s</span><div><p class="label">今回の記録（撮影用のラベル）</p><h3>60秒の紹介動画を完成</h3><p>作業完了自体の事実認定は行いません。</p></div></div>
+        <div class="quest-card">
+          <span class="quest-icon">60s</span>
+          <div><p class="label"><span class="tag light">モック</span> 説明用の目標ラベル</p><h3>60秒の紹介動画を完成</h3><p>動画の内容や完了の事実はコントラクトでは扱いません。</p></div>
+        </div>
         <dl class="witness-grid">
-          <div><dt>questId</dt><dd>••••••••••••</dd></div>
+          <div><dt>questId<span class="field-scope">記録時のみ非公開</span></dt><dd>••••••••••••</dd></div>
           <div><dt>userSecret</dt><dd>••••••••••••</dd></div>
           <div><dt>saltValue</dt><dd>••••••••••••</dd></div>
           <div><dt>localSecretKey</dt><dd>••••••••••••</dd></div>
           <div><dt>versionNum</dt><dd>••••</dd></div>
         </dl>
-        <p class="small">秘密値はローカルNodeプロセスのメモリに保持。ブラウザには返しません。プレビュー利用時の「手元」はManus Sandboxです。</p>
+        <p class="small">売り手の秘密・乱数・鍵はローカルNodeのメモリに保持し、値をブラウザへ返しません。プレビュー利用時の「手元」はManus Sandboxです。</p>
         <div class="record-row"><button id="record" class="primary" type="button" disabled>01 記録を登録</button><span id="record-result" role="status">まだ登録していません</span></div>
         <div class="condition-box">
           <div class="section-title"><span class="section-number">02</span><h3>依頼者が条件を出す</h3><span class="tag light">公開入力</span></div>
+          <p class="small">ここでの条件はquestIdと問いの値だけです。</p>
           <form id="condition-form">
-            <div class="condition-fields"><label>questId<select id="quest-choice"><option value="recorded">登録したquestId</option><option value="other">別のquestId（合わない）</option></select></label><label>challenge<input id="challenge" type="text" pattern="[a-fA-F0-9]{64}" minlength="64" maxlength="64" spellcheck="false" autocomplete="off" required aria-describedby="challenge-help"></label></div>
+            <div class="condition-fields">
+              <label>questId<select id="quest-choice"><option value="recorded">登録したquestId</option><option value="other">別のquestId（合わない）</option></select></label>
+              <label>問いの値（challenge）<input id="challenge" type="text" pattern="[a-fA-F0-9]{64}" minlength="64" maxlength="64" spellcheck="false" autocomplete="off" required aria-describedby="challenge-help"></label>
+            </div>
             <div class="form-bottom"><span id="challenge-help" class="small">64桁の16進数。<button id="new-challenge" class="text-button" type="button" disabled>新しいchallengeを用意</button></span><button id="condition-submit" class="secondary" type="submit" disabled>条件を出す</button></div>
           </form>
-          <details id="condition-details" hidden><summary>提示した公開入力を見る</summary><dl><dt>questId</dt><dd id="public-quest"></dd><dt>challenge</dt><dd id="public-challenge"></dd></dl></details>
-          <p class="small condition-note">questIdは登録時のwitnessですが、確認時にはchallengeとともに公開入力になります。</p>
+          <details id="condition-details" hidden><summary>提示した公開入力を見る</summary><dl><dt>questId</dt><dd id="public-quest"></dd><dt>問いの値（challenge）</dt><dd id="public-challenge"></dd></dl></details>
+          <p class="small condition-note">questIdは記録時のみ非公開です。確認時は依頼者が知っている公開入力です。業務領域・予算・納期や項目ごとの公開設定は、このコントラクトにありません。</p>
         </div>
         <div class="respond-row"><button id="respond" class="primary" type="button" disabled>03 売り手が応答</button><span id="condition-state" class="small">先に条件を出してください</span></div>
         <div class="negative-actions"><span>失敗する場合も試す</span><button id="wrong-secret" type="button" disabled>間違った秘密で応答</button><button id="duplicate" type="button" disabled>同じ記録を再登録</button></div>
       </section>
-      <section class="ledger-panel panel" aria-labelledby="ledger-heading">
-        <div class="panel-heading"><div><p class="eyebrow">SIMULATOR / 公開状態</p><h2 id="ledger-heading">台帳に残るもの。</h2></div><span class="tag light">実際の回路結果</span></div>
-        <div class="ledger-metrics"><div><span class="label">記録の件数</span><strong id="counter">0</strong></div><div class="metric-note"><span id="ledger-status" class="tag light">未登録</span><span>生成ledgerから読み取り</span></div></div>
-        <div class="ledger-field"><div class="field-title"><h3>commitment</h3><span>記録の指紋</span></div><div id="commitments" class="hash-list empty">まだ記録がありません</div></div>
-        <div class="ledger-field"><div class="field-title"><h3>nullifier</h3><span>二重登録を防ぐ値</span></div><div id="nullifiers" class="hash-list empty">まだ記録がありません</div></div>
-        <section id="requester-result" class="requester-result" aria-live="polite"><p class="eyebrow">REQUESTER / 依頼者に見える結果</p><h3 id="outcome">応答を待っています</h3><p>この結果欄には「条件に合う／合わない」だけを表示。</p></section>
-        <section class="event-section"><div class="field-title"><h3>デモ実行ログ</h3><span>回路名・時刻は台帳フィールドではありません</span></div><ol id="events"><li class="no-events">回路を呼ぶと、ここに実行結果が表示されます。</li></ol></section>
-      </section>
+      <div class="ledger-panel panel">
+        <section class="ledger-state" aria-labelledby="ledger-heading">
+          <div class="panel-heading"><div><p class="eyebrow">SIMULATOR / 台帳</p><h2 id="ledger-heading">台帳の中身</h2></div><span class="tag light">実際の回路結果のみ</span></div>
+          <div class="ledger-metrics"><div><span class="label">件数</span><strong id="counter">0</strong></div><div class="metric-note"><span id="ledger-status" class="tag light">未登録</span><span>生成ledgerから読み取り</span></div></div>
+          <div class="ledger-field"><div class="field-title"><h3>記録の指紋</h3><span>commitment</span></div><div id="commitments" class="hash-list empty">まだ記録がありません</div></div>
+          <div class="ledger-field"><div class="field-title"><h3>二重登録の防止印</h3><span>nullifier</span></div><div id="nullifiers" class="hash-list empty">まだ記録がありません</div></div>
+        </section>
+        <section class="demo-record-section" aria-labelledby="demo-heading">
+          <div class="panel-heading"><div><p class="eyebrow">SERVER / 台帳ではありません</p><h2 id="demo-heading">デモの記録</h2></div><span class="tag light">サーバーの記録</span></div>
+          <section id="requester-result" class="requester-result" aria-live="polite">
+            <p class="eyebrow">REQUESTER / 回路実行の結果</p><h3 id="outcome">応答を待っています</h3>
+            <p id="outcome-note">回路が正常に終了したかを受けて表示します。</p>
+          </section>
+          <section class="disclosure-section" aria-live="polite">
+            <div class="field-title"><h3>この確認で開示された指紋</h3><span>確認時の公開参照</span></div>
+            <div id="disclosed-commitment" class="hash-list empty">まだ確認していません</div>
+            <p id="disclosure-note" class="small">確認時の公開参照であり、台帳に追加される項目ではありません。</p>
+          </section>
+          <section class="event-section">
+            <div class="field-title"><h3>呼んだ回路名・時刻</h3><span>サーバーが記録</span></div>
+            <ol id="events"><li class="no-events">回路を呼ぶと、サーバーが回路名と時刻をここに記録します。</li></ol>
+          </section>
+        </section>
+      </div>
     </main>
-    <aside class="limitation"><span class="notice-label">既知の限界</span><p>確認時に同じcommitmentを公開参照するため、同じ記録の確認同士は結び付き得ます。Wave 3で対応を予定しています。</p></aside>
+    <aside class="limitation"><span class="notice-label">この実装の限界</span><p>同じ記録への確認どうしは結び付く（この実装の限界、Wave 3で対応）</p></aside>
     <footer><span>COMPACT 0.31.1 / RUNTIME 0.16.0 / LEDGER 8.0.2</span><span>ネットワーク取引なし・リセット／再起動で状態は消えます</span></footer>
   </div>
 </body>

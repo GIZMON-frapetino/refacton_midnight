@@ -66,6 +66,23 @@ function render(next, refreshChallenge = false) {
   $('record-result').className = state.recordOutcome || '';
   $('outcome').textContent = state.outcome ? statuses[state.outcome] : '応答を待っています';
   $('requester-result').className = `requester-result ${state.outcome || ''}`;
+  $('outcome-note').textContent = state.outcome === 'no_match'
+    ? 'Attestation not foundで回路が停止しました。台帳への記録はありません。'
+    : '回路が正常に終了したかを受けて表示します。';
+  const latestCheck = state.events.find((event) => event.circuit === 'checkAttestation');
+  const disclosed = state.outcome === 'match' && latestCheck?.status === 'match'
+    ? latestCheck.commitment : null;
+  hashes('disclosed-commitment', disclosed ? [disclosed] : []);
+  if (disclosed) {
+    $('disclosure-note').textContent = state.commitments.includes(disclosed)
+      ? '上の「記録の指紋」と同じ値です。確認時の公開参照で、台帳への追加項目ではありません。'
+      : '確認時に公開参照した指紋です。';
+  } else {
+    $('disclosed-commitment').textContent = state.outcome === 'no_match'
+      ? 'この確認はエラーで停止しました。開示は成立していません。'
+      : 'まだ確認していません';
+    $('disclosure-note').textContent = '確認時の公開参照であり、台帳に追加される項目ではありません。';
+  }
   $('condition-state').textContent = state.condition ? '提示済みの条件に応答します' : '先に条件を出してください';
   $('condition-details').hidden = !state.condition;
   if (state.condition) {
@@ -80,7 +97,7 @@ function render(next, refreshChallenge = false) {
   if (!state.events.length) {
     const empty = document.createElement('li');
     empty.className = 'no-events';
-    empty.textContent = '回路を呼ぶと、ここに実行結果が表示されます。';
+    empty.textContent = '回路を呼ぶと、サーバーが回路名と時刻をここに記録します。';
     $('events').append(empty);
   }
   for (const event of state.events) {
@@ -97,12 +114,6 @@ function render(next, refreshChallenge = false) {
     time.textContent = new Date(event.time).toLocaleTimeString('ja-JP', { hour12: false });
     main.append(circuit, status, time);
     item.append(main);
-    if (event.commitment) {
-      const note = document.createElement('div');
-      note.className = 'event-note';
-      note.textContent = `commitment ${event.commitment.slice(0, 20)}… / 件数 ${event.counter}`;
-      item.append(note);
-    }
     $('events').append(item);
   }
   buttons();

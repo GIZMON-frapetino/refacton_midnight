@@ -120,7 +120,12 @@ test('HTTP API runs circuits, isolates sessions, keeps private values out and re
     assert.deepEqual((await routes.json()).routes.map((r) => r.path), ['/']);
     const page = await fetch(origin + '/');
     assert.equal(page.status, 200);
-    assert.match(await page.text(), /ローカルシミュレーター上で実行中（Preprod未配備）/);
+    const html = await page.text();
+    assert.match(html, /ローカルシミュレーター上で実行中（Preprod未配備）/);
+    for (const text of ['記録時のみ非公開', '台帳の中身', 'デモの記録', 'サーバーの記録', '二重登録の防止印', 'この確認で開示された指紋', 'モック']) {
+      assert.ok(html.includes(text), `Missing UI label: ${text}`);
+    }
+    assert.ok(html.includes('同じ記録への確認どうしは結び付く（この実装の限界、Wave 3で対応）'));
     const missing = await fetch(origin + '/not-an-asset');
     assert.equal(missing.status, 404);
   } finally {
