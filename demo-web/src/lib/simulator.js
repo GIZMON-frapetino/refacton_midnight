@@ -5,7 +5,7 @@ import {
   createCircuitContext,
   dummyContractAddress,
   DUMMY_ADDRESS,
-} from '../../../node_modules/@midnight-ntwrk/compact-runtime/dist/index.js';
+} from '@midnight-ntwrk/compact-runtime';
 
 export class ContractSimulator {
   constructor(witnesses) {

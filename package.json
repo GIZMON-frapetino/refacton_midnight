@@ -7,7 +7,7 @@
     "compile": "./compactc contract/quest-attestation.compact ./compiled",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
-    "test:demo-web": "node demo-web/scripts/smoke.mjs"
+    "test:demo-web": "node --import ./demo-web/scripts/node-alias.mjs ./demo-web/scripts/smoke.mjs"
   },
   "keywords": [
     "midnight",
