@@ -1,5 +1,22 @@
 # Quest Attestation - Midnight Network
 
+## 動くローカルデモ
+
+**ローカルシミュレーター上で実行中（Preprod未配備）**
+
+Node.js 22以上で、リポジトリのルートから次の2コマンドを実行し、`http://127.0.0.1:3000`を開きます。生成済みコントラクトがあるため、デモ起動にはコンパイラの導入は不要です。
+
+```bash
+npm install
+npm run demo
+```
+
+「記録を登録」→「条件を出す」→「売り手が応答」で、元の`recordQuest`と`checkAttestation`を実行します。台帳のcommitment・nullifier・件数は生成`ledger()`から読み取ります。「間違った秘密で応答」と「同じ記録を再登録」も実回路による拒否です。
+
+秘密はローカルNodeメモリの撮影用ダミーデータです。questIdは確認回路では公開入力になります。回路名と時刻は台帳フィールドではなくデモログです。確認時に同じcommitmentを公開参照するため、同じ記録の確認同士は結び付き得ます。再起動・リセットでローカル状態は消えます。
+
+現行デモの接続・公開値・撮影台本は[demo/README.md](demo/README.md)を参照してください。以下の既存の説明には過去の記述が残っています。本PRではPR #3の説明修正を取り込まず、現行デモの挙動をこの追加節とデモREADMEで示しています。
+
 A privacy-focused quest completion attestation system built on Midnight Network for Buildathon Wave 2. Records quest completions on-chain without revealing personal data.
 
 ## What is Quest Attestation?
