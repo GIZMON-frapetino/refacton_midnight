@@ -3,13 +3,6 @@
  * Run from repo root: npm run test:demo-web
  * (Uses root node_modules compact-runtime so types match compiled/contract.)
  */
-import { createRequire } from 'node:module';
-import { fileURLToPath } from 'node:url';
-import path from 'node:path';
-
-const require = createRequire(import.meta.url);
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-require.resolve(path.join(repoRoot, 'node_modules/@midnight-ntwrk/compact-runtime/package.json'));
 import { randomBytes } from 'node:crypto';
 import {
   ContractSimulator,
