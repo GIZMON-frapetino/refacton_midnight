@@ -105,6 +105,7 @@ export default function SellerFlow({ session, onSessionChange, appendLog, ledger
           <div className="step-content">
             <div className="section-kicker"><span className="eyebrow">YOUR PLAN</span><span className="mock-tag">mock</span></div>
             <h2 id="flow-heading" tabIndex={-1}>{GOAL}</h2>
+            <p className="simulator-note">A sample plan written by an AI engineer.</p>
             <p className="flow-description">One small step at a time.</p>
             <ol className="plan-list">
               <li><span>01</span><div><strong>Map the invoice flow</strong></div></li>
@@ -123,6 +124,7 @@ export default function SellerFlow({ session, onSessionChange, appendLog, ledger
             <ul className="quest-list">
               {QUEST_TASKS.map((task, i) => <li key={task}><span className="task-number">{i + 1}</span><span>{task}</span></li>)}
             </ul>
+            <div className="intro-note"><span className="mock-tag">mock</span><p>Work note (sample, kept on your device): why this setup, what failed, how you fixed it.</p></div>
             <div className="quest-code"><span className="field-label">Your quest code</span><CodeValue value={session?.questIdHex ?? ''} label="quest id" /></div>
             <button type="button" className="primary" onClick={completeQuest} disabled={busy}>{busy ? 'Saving your quest…' : 'Mark quest complete'}<span aria-hidden="true">→</span></button>
           </div>

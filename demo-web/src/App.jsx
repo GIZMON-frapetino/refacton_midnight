@@ -52,7 +52,7 @@ export default function App() {
           <span className="demo-label">MIDNIGHT DEMO</span>
         </div>
         <h1>Small steps. Real progress.</h1>
-        <p>Show that you finished a skill quest without handing over your personal data.</p>
+        <p>Share a record of a finished skill quest, without handing over your personal data.</p>
         <p className="privacy-line">Your name stays with you. Buyers see only a match.</p>
         <p className="simulator-note">Runs the QuestAttestation contract in a local simulator in your browser. Not deployed to a network yet.</p>
       </header>
@@ -109,6 +109,7 @@ export default function App() {
             <p><span className="mock-tag">mock</span> The plan, quest content and walkthrough are demo examples.</p>
             <p><strong>No Midnight network connection in this build.</strong> No wallet or network transaction is involved.</p>
             <p>Privacy note: repeated checks of the same record can be linked because the contract discloses the same commitment during each check. Buyer-side data protection is outside this demo's scope.</p>
+            <p>Planned: hide client names and private settings, and share only the parts you choose.</p>
             <p>Local session files include secrets. Share them only when trying this demo with someone you trust.</p>
             <a href="https://github.com/GIZMON-frapetino/refacton_midnight">View the repository</a>
           </div>
