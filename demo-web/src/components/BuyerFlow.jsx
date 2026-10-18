@@ -5,7 +5,7 @@ import LedgerPanel from './LedgerPanel.jsx';
 import DemoLog from './DemoLog.jsx';
 import CodeValue from './CodeValue.jsx';
 
-export default function BuyerFlow({ session, onSessionChange, appendLog, ledgerView, demoLog, onStartSeller }) {
+export default function BuyerFlow({ session, onSessionChange, appendLog, ledgerView, demoLog, onStartSeller, businessView = false, onFinish }) {
   const [questIdInput, setQuestIdInput] = useState(session?.questIdHex ?? '');
   const [challengeInput, setChallengeInput] = useState(() => bytesToHex(randomBytes32()));
   const [differentSecret, setDifferentSecret] = useState(false);
@@ -54,22 +54,26 @@ export default function BuyerFlow({ session, onSessionChange, appendLog, ledgerV
     }
   }
 
+  const secretControl = <label className="checkbox-field" htmlFor="different-secret"><input id="different-secret" type="checkbox" checked={differentSecret} onChange={(e) => { clearResult(); setDifferentSecret(e.target.checked); }} /><span>Use a different secret<small>Try a no-match result. The secret stays hidden.</small></span></label>;
+
   return (
     <div className="flow-layout">
       <section className="flow-card buyer-card">
         <div className="section-kicker"><span className="eyebrow">THE BUYER VIEW</span><span className="contract-tag">contract</span></div>
-        <h2 id="flow-heading" tabIndex={-1}>Check a completed quest.</h2>
-        {!result && <p className="flow-description">One tap to check. Your details stay off the ledger.</p>}
+        <h2 id="flow-heading" tabIndex={-1}>{businessView ? "Check this engineer's record" : 'Check a completed quest.'}</h2>
+        {!result && <p className="flow-description">{businessView ? "Before you pay, check Engineer #A12's saved extraction-step record. You only see match or no match." : 'One tap to check. Your details stay off the ledger.'}</p>}
+        {businessView && !result && <p className="business-help">Sample record: the extraction quest, not all six plan steps. No payment is made in this demo.</p>}
 
         {session?.recorded ? (
           <>
-            {!result && <div className="ready-record"><span className="field-label">Quest code ready</span><CodeValue value={questIdInput} label="quest id" /></div>}
-            <button type="button" className="primary" onClick={runCheck} disabled={busy || !questIdInput || !challengeInput}>{busy ? 'Checking your quest…' : 'Check this quest'}<span aria-hidden="true">→</span></button>
+            {!result && !businessView && <div className="ready-record"><span className="field-label">Quest code ready</span><CodeValue value={questIdInput} label="quest id" /></div>}
+            {businessView && secretControl}
+            <button type="button" className={businessView && result ? 'secondary check-again' : 'primary'} onClick={runCheck} disabled={busy || !questIdInput || !challengeInput}>{busy ? 'Checking your quest…' : 'Check this quest'}<span aria-hidden="true">→</span></button>
           </>
         ) : (
           <div className="no-record">
-            <p>No quest saved yet. Finish the seller walkthrough first, or import a session in Advanced.</p>
-            <button type="button" className="primary" onClick={onStartSeller}>Start with a quest<span aria-hidden="true">→</span></button>
+            <p>{businessView ? 'No sample record saved yet.' : 'No quest saved yet. Finish the seller walkthrough first, or import a session in Advanced.'}</p>
+            {businessView ? <a className="record-help-link" href="#engineer-record" onClick={(event) => { event.preventDefault(); onStartSeller(); }}>How the record was saved</a> : <button type="button" className="primary" onClick={onStartSeller}>Start with a quest<span aria-hidden="true">→</span></button>}
           </div>
         )}
 
@@ -82,7 +86,7 @@ export default function BuyerFlow({ session, onSessionChange, appendLog, ledgerV
               {result.status === 'match' && <small className="simulator-note">Answered for this check only.</small>}
               <details className="result-details"><summary>Details<span className="disclosure-arrow" aria-hidden="true" /></summary><div>{result.status === 'match' ? <><p>Challenge-bound response</p><CodeValue value={result.responseHex} label="response" /></> : <p className="technical-detail">{result.detail}</p>}</div></details>
             </div>
-            <p className="simulator-note">Coming next (not built): follow this engineer's steps in your business, and hire them when you get stuck.</p>
+            {businessView ? <button type="button" className="primary" onClick={onFinish}>Continue</button> : <p className="simulator-note">Coming next (not built): follow this engineer's steps in your business, and hire them when you get stuck.</p>}
           </>
         )}
         {error && <div className="error-message" role="alert"><strong>Couldn't run this check.</strong><p>{error}</p></div>}
@@ -96,14 +100,14 @@ export default function BuyerFlow({ session, onSessionChange, appendLog, ledgerV
             <label className="field" htmlFor="challenge">Challenge (32 bytes hex)</label>
             <input id="challenge" type="text" value={challengeInput} onChange={(e) => { clearResult(); setChallengeInput(e.target.value); }} placeholder="64 hex characters" spellCheck={false} autoCapitalize="none" autoComplete="off" />
             <button type="button" className="secondary" onClick={randomChallenge}>Generate a new challenge</button>
-            <label className="checkbox-field" htmlFor="different-secret"><input id="different-secret" type="checkbox" checked={differentSecret} onChange={(e) => { clearResult(); setDifferentSecret(e.target.checked); }} /><span>Use a different secret<small>Try a no-match result. The secret stays hidden.</small></span></label>
+            {!businessView && secretControl}
             <label className="field" htmlFor="session-file">Import seller session file</label>
             <input id="session-file" type="file" accept="application/json,.json" onChange={(e) => { const file = e.target.files?.[0]; if (file) importSessionFile(file); }} />
             <p className="support-copy">Session files contain local secrets. Use them only for this demo.</p>
           </div>
         </details>
       </section>
-      <aside className="support-panels" aria-label="Demo details"><LedgerPanel ledgerView={ledgerView} /><DemoLog entries={demoLog} /></aside>
+      {!businessView && <aside className="support-panels" aria-label="Demo details"><LedgerPanel ledgerView={ledgerView} /><DemoLog entries={demoLog} /></aside>}
     </div>
   );
 }

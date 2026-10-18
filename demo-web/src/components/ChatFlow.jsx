@@ -1,20 +1,25 @@
-import { useState } from 'react';
+import { forwardRef, useImperativeHandle, useState } from 'react';
+import { PLAN_STEPS } from './invoicePlan.js';
+import BusinessSteps from './BusinessSteps.jsx';
+import BuyerFlow from './BuyerFlow.jsx';
 import './ChatFlow.css';
 
 const SAMPLE_MESSAGE = 'We type every invoice into our accounting sheet by hand. It takes hours each month and typos slip in.';
-const PLAN_STEPS = [
-  { title: 'Map the invoice flow', time: '15 min' },
-  { title: 'Collect sample invoices' },
-  { title: 'Build the extraction step' },
-  { title: 'Check date, amount and vendor' },
-  { title: 'Write to the accounting sheet' },
-  { title: 'Hand off the workflow' },
-];
 
-export default function ChatFlow() {
+export default forwardRef(function ChatFlow({ session, onSessionChange, appendLog, demoLog, onOpenEngineer, onStageChange }, ref) {
   const [draft, setDraft] = useState(SAMPLE_MESSAGE);
   const [message, setMessage] = useState(null);
-  const [outline, setOutline] = useState(false);
+  const [stage, setStage] = useState('chat');
+  const [workStep, setWorkStep] = useState(1);
+
+  function navigate(next, heading) {
+    setStage(next);
+    onStageChange?.(next);
+    window.scrollTo(0, 0);
+    requestAnimationFrame(() => document.getElementById(heading)?.focus());
+  }
+
+  useImperativeHandle(ref, () => ({ openCheck: () => navigate('check', 'flow-heading') }));
 
   function sendMessage(event) {
     event.preventDefault();
@@ -26,12 +31,22 @@ export default function ChatFlow() {
   }
 
   function usePlan() {
-    setOutline(true);
-    window.scrollTo(0, 0);
-    requestAnimationFrame(() => document.getElementById('outline-heading')?.focus());
+    navigate('outline', 'outline-heading');
   }
 
-  if (outline) {
+  if (stage === 'steps') {
+    return <BusinessSteps step={workStep} onNext={() => { setWorkStep((prev) => prev + 1); navigate('steps', 'work-heading'); }} onAsk={() => navigate('check', 'flow-heading')} />;
+  }
+
+  if (stage === 'check') {
+    return <section className="business-check"><p className="business-progress">Step 6 of 6</p><BuyerFlow key={session?.questIdHex || 'no-record'} session={session} onSessionChange={onSessionChange} appendLog={appendLog} ledgerView={session?.ledger} demoLog={demoLog} onStartSeller={onOpenEngineer} businessView onFinish={() => navigate('final', 'final-heading')} /></section>;
+  }
+
+  if (stage === 'final') {
+    return <section className="business-final"><span className="mock-tag">Sample next step</span><h1 id="final-heading" tabIndex={-1}>Next: hire Engineer #A12 for step 5 only.</h1><p>Runs in a local browser simulator, not on a network yet.</p><small>No payment or hire is made in this demo.</small></section>;
+  }
+
+  if (stage === 'outline') {
     return (
       <section className="chat-outline" aria-labelledby="outline-heading">
         <p className="chat-sample-label">Sample plan <span className="chat-mock">(MOCK)</span></p>
@@ -49,7 +64,7 @@ export default function ChatFlow() {
             ))}
           </ol>
         </div>
-        <p className="chat-help">The next screens of this walkthrough are not built yet.</p>
+        <button type="button" className="top-cta" onClick={() => { setWorkStep(1); navigate('steps', 'work-heading'); }}>Start step 1</button>
       </section>
     );
   }
@@ -83,4 +98,4 @@ export default function ChatFlow() {
       )}
     </section>
   );
-}
+});

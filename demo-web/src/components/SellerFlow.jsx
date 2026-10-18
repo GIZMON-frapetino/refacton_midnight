@@ -5,16 +5,12 @@ import { randomBytes32 } from '../lib/bytes.js';
 import LedgerPanel from './LedgerPanel.jsx';
 import DemoLog from './DemoLog.jsx';
 import CodeValue from './CodeValue.jsx';
+import QuestWorkContent from './QuestWorkContent.jsx';
 
 const GOAL = 'Automate invoice intake with AI';
 const QUEST_TITLE = 'Build the extraction step';
-const QUEST_TASKS = [
-  'Collect 10 sample invoices.',
-  'Extract date, amount, vendor.',
-  'Check results against the originals.',
-];
 
-export default function SellerFlow({ session, onSessionChange, appendLog, ledgerView, demoLog, step, onStepChange, onCheckAsBuyer }) {
+export default function SellerFlow({ session, onSessionChange, appendLog, ledgerView, demoLog, step, onStepChange, onCheckAsBuyer, engineerView = false }) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const setStep = onStepChange;
@@ -82,7 +78,8 @@ export default function SellerFlow({ session, onSessionChange, appendLog, ledger
 
   return (
     <div className="flow-layout">
-      <section className="flow-card seller-card">
+      <section className={`flow-card seller-card ${engineerView ? 'engineer-card' : ''}`}>
+        {!engineerView && (
         <ol className="progress-steps" aria-label="Quest progress">
           {['Plan', "Today's quest", 'Done'].map((label, index) => (
             <li key={label} className={index + 1 < activeStep ? 'completed' : index + 1 === activeStep ? 'current' : ''} aria-current={index + 1 === activeStep ? 'step' : undefined}>
@@ -90,6 +87,7 @@ export default function SellerFlow({ session, onSessionChange, appendLog, ledger
             </li>
           ))}
         </ol>
+        )}
 
         {step === 0 && (
           <div className="step-content">
@@ -119,31 +117,30 @@ export default function SellerFlow({ session, onSessionChange, appendLog, ledger
         {step === 2 && (
           <div className="step-content">
             <div className="section-kicker"><span className="eyebrow">TODAY'S QUEST</span><span className="mock-tag">mock</span></div>
-            <h2 id="flow-heading" tabIndex={-1}>{QUEST_TITLE}</h2>
-            <p className="flow-description">Three small tasks. One step forward.</p>
-            <ul className="quest-list">
-              {QUEST_TASKS.map((task, i) => <li key={task}><span className="task-number">{i + 1}</span><span>{task}</span></li>)}
-            </ul>
-            <div className="intro-note"><span className="mock-tag">mock</span><p>Work note (sample, kept on your device): why this setup, what failed, how you fixed it.</p></div>
-            <div className="quest-code"><span className="field-label">Your quest code</span><CodeValue value={session?.questIdHex ?? ''} label="quest id" /></div>
-            <button type="button" className="primary" onClick={completeQuest} disabled={busy}>{busy ? 'Saving your quest…' : 'Mark quest complete'}<span aria-hidden="true">→</span></button>
+            <h2 id={engineerView ? 'engineer-heading' : 'flow-heading'} tabIndex={-1}>{engineerView ? "How the engineer's record was saved" : QUEST_TITLE}</h2>
+            <p className="flow-description">{engineerView ? 'Sample extraction quest. Saving calls recordQuest locally.' : 'Three small tasks. One step forward.'}</p>
+            <QuestWorkContent />
+            {!engineerView && <div className="quest-code"><span className="field-label">Your quest code</span><CodeValue value={session?.questIdHex ?? ''} label="quest id" /></div>}
+            <button type="button" className="primary" onClick={completeQuest} disabled={busy}>{busy ? 'Saving your quest…' : engineerView ? 'Save engineer record' : 'Mark quest complete'}<span aria-hidden="true">→</span></button>
           </div>
         )}
 
         {step === 3 && session?.recorded && (
           <div className="step-content done-content">
-            <div className="success-symbol" aria-hidden="true"><span /></div>
+            {!engineerView && <div className="success-symbol" aria-hidden="true"><span /></div>}
             <p className="eyebrow">ONE SMALL STEP, COMPLETED</p>
-            <h2 id="flow-heading" tabIndex={-1}>Your quest is saved.</h2>
+            <h2 id={engineerView ? 'engineer-heading' : 'flow-heading'} tabIndex={-1}>{engineerView ? "How the engineer's record was saved" : 'Your quest is saved.'}</h2>
             <p className="flow-description">Saved locally. Only a code, not your personal details, is on the ledger.</p>
-            <div className="quest-code"><span className="field-label">Share your quest code</span><CodeValue value={session.questIdHex} label="quest id" /></div>
-            <button type="button" className="primary" onClick={onCheckAsBuyer}>Check it as a buyer<span aria-hidden="true">→</span></button>
+            {!engineerView && <div className="quest-code"><span className="field-label">Share your quest code</span><CodeValue value={session.questIdHex} label="quest id" /></div>}
+            <button type="button" className="primary" onClick={onCheckAsBuyer}>{engineerView ? 'Back to the business check' : 'Check it as a buyer'}<span aria-hidden="true">→</span></button>
+            {!engineerView && (
             <details className="advanced session-options"><summary>Session options<span className="disclosure-arrow" aria-hidden="true" /></summary><div className="advanced-body"><p className="support-copy">The session file contains local secrets. Only share it for this demo.</p><button type="button" className="secondary" onClick={downloadSession}>Download session file</button><button type="button" className="text-button" onClick={resetFlow}>Start a new demo</button></div></details>
+            )}
           </div>
         )}
         {error && <p className="error-message" role="alert">{error}</p>}
       </section>
-      <aside className="support-panels" aria-label="Demo details"><LedgerPanel ledgerView={ledgerView} /><DemoLog entries={demoLog} /></aside>
+      <aside className="support-panels" aria-label="Demo details"><LedgerPanel ledgerView={ledgerView} />{!engineerView && <DemoLog entries={demoLog} />}</aside>
     </div>
   );
 }
