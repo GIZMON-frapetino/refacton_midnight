@@ -1,58 +1,31 @@
-import { useMemo, useState } from 'react';
-import {
-  exportMaterial,
-  materialFromExport,
-} from '../lib/simulator.js';
+import { useState } from 'react';
+import { exportMaterial, materialFromExport } from '../lib/simulator.js';
 import { recordSession } from '../lib/session.js';
-import { randomBytes32, truncateHex } from '../lib/bytes.js';
+import { randomBytes32 } from '../lib/bytes.js';
 import LedgerPanel from './LedgerPanel.jsx';
 import DemoLog from './DemoLog.jsx';
+import CodeValue from './CodeValue.jsx';
 
-const GOAL = 'Ship a Midnight dApp';
-const QUEST_TITLE = 'Bootstrap a local Compact workspace';
+const GOAL = 'Build a Midnight app';
+const QUEST_TITLE = 'Set up your workspace';
 const QUEST_TASKS = [
-  'Install Node.js 18+ and clone the QuestAttestation repo',
-  'Run npm install and npm test (16 simulator tests)',
-  'Skim contract/quest-attestation.compact circuits',
+  'Install Node.js. Open the repo.',
+  'Install packages. Run 16 tests.',
+  'Explore the quest contract.',
 ];
 
-export default function SellerFlow({ session, onSessionChange, appendLog, ledgerView, demoLog }) {
-  const [step, setStep] = useState(session?.recorded ? 3 : 0);
+export default function SellerFlow({ session, onSessionChange, appendLog, ledgerView, demoLog, step, onStepChange, onCheckAsBuyer }) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-
-  const questIdDisplay = session?.questIdHex ? truncateHex(session.questIdHex) : null;
-
-  const planMock = useMemo(
-    () => ({
-      goal: GOAL,
-      milestones: [
-        'Week 1: contract + local simulator tests',
-        'Week 2: demo web + Buildathon submission',
-        'Week 3: preprod deployment (future)',
-      ],
-    }),
-    []
-  );
+  const setStep = onStepChange;
 
   function ensureMaterial() {
-    if (session?.questIdHex) {
-      return materialFromExport(session);
-    }
+    if (session?.questIdHex) return materialFromExport(session);
     const material = {
-      questId: randomBytes32(),
-      version: 1n,
-      userSecret: randomBytes32(),
-      localSecretKey: randomBytes32(),
-      salt: randomBytes32(),
+      questId: randomBytes32(), version: 1n, userSecret: randomBytes32(),
+      localSecretKey: randomBytes32(), salt: randomBytes32(),
     };
-    const exported = exportMaterial(material);
-    onSessionChange({
-      ...exported,
-      recorded: false,
-      ledger: null,
-      lastResponseHex: null,
-    });
+    onSessionChange({ ...exportMaterial(material), recorded: false, ledger: null, lastResponseHex: null });
     return material;
   }
 
@@ -105,94 +78,70 @@ export default function SellerFlow({ session, onSessionChange, appendLog, ledger
     appendLog('Seller reset the demo session.');
   }
 
+  const activeStep = Math.max(1, step);
+
   return (
-    <div className="grid two">
-      <div className="panel">
-        <h2>
-          Seller journey <span className="mock-tag">mock</span> +{' '}
-          <span className="contract-tag">contract</span>
-        </h2>
-        <div className="steps" aria-label="Progress">
-          <span className={`step-pill ${step >= 1 ? 'done' : step === 0 ? 'current' : ''}`}>Plan</span>
-          <span className={`step-pill ${step >= 2 ? 'done' : step === 1 ? 'current' : ''}`}>
-            Today&apos;s quest
-          </span>
-          <span className={`step-pill ${step >= 3 ? 'done' : step === 2 ? 'current' : ''}`}>
-            Quest done
-          </span>
-        </div>
+    <div className="flow-layout">
+      <section className="flow-card seller-card">
+        <ol className="progress-steps" aria-label="Quest progress">
+          {['Plan', "Today's quest", 'Done'].map((label, index) => (
+            <li key={label} className={index + 1 < activeStep ? 'completed' : index + 1 === activeStep ? 'current' : ''} aria-current={index + 1 === activeStep ? 'step' : undefined}>
+              <span className="step-number">{index + 1}</span><span>{label}</span>
+            </li>
+          ))}
+        </ol>
 
         {step === 0 && (
-          <>
-            <p>Start the Midnight Buildathon seller walkthrough.</p>
-            <button type="button" className="primary" onClick={advanceToPlan}>
-              Begin
-            </button>
-          </>
+          <div className="step-content">
+            <p className="eyebrow">ONE QUEST AT A TIME</p>
+            <h2 id="flow-heading" tabIndex={-1}>Make your next step a small one.</h2>
+            <p className="flow-description">Pick a plan, finish one skill quest, and share your progress with a simple code.</p>
+            <div className="intro-note"><span className="mock-tag">mock</span><p>A short walkthrough. No wallet needed.</p></div>
+            <button type="button" className="primary" onClick={advanceToPlan}>Create my plan<span aria-hidden="true">→</span></button>
+          </div>
         )}
 
         {step === 1 && (
-          <>
-            <h3>
-              Plan <span className="mock-tag">mock</span>
-            </h3>
-            <p>
-              <strong>Goal:</strong> {planMock.goal}
-            </p>
-            <ul className="quest-list">
-              {planMock.milestones.map((m) => (
-                <li key={m}>{m}</li>
-              ))}
-            </ul>
-            <button type="button" className="primary" onClick={advanceToQuest}>
-              Use this plan
-            </button>
-          </>
+          <div className="step-content">
+            <div className="section-kicker"><span className="eyebrow">YOUR PLAN</span><span className="mock-tag">mock</span></div>
+            <h2 id="flow-heading" tabIndex={-1}>{GOAL}</h2>
+            <p className="flow-description">One small step at a time.</p>
+            <ol className="plan-list">
+              <li><span>01</span><div><strong>Get set up</strong><p>Set up your workspace.</p></div></li>
+              <li><span>02</span><div><strong>Try the demo</strong><p>Save a quest. Try a check.</p></div></li>
+              <li><span>03</span><div><strong>Keep building</strong><p>Connect to a network later.</p></div></li>
+            </ol>
+            <button type="button" className="primary" onClick={advanceToQuest}>Use this plan<span aria-hidden="true">→</span></button>
+          </div>
         )}
 
         {step === 2 && (
-          <>
-            <h3>
-              Today&apos;s quest <span className="mock-tag">mock</span>
-            </h3>
-            <p><strong>{QUEST_TITLE}</strong></p>
+          <div className="step-content">
+            <div className="section-kicker"><span className="eyebrow">TODAY'S QUEST</span><span className="mock-tag">mock</span></div>
+            <h2 id="flow-heading" tabIndex={-1}>{QUEST_TITLE}</h2>
+            <p className="flow-description">Three small tasks. One step forward.</p>
             <ul className="quest-list">
-              {QUEST_TASKS.map((t) => (
-                <li key={t}>{t}</li>
-              ))}
+              {QUEST_TASKS.map((task, i) => <li key={task}><span className="task-number">{i + 1}</span><span>{task}</span></li>)}
             </ul>
-            <p className="note">
-              Quest id for this session (public identifier for buyer check):{' '}
-              <code>{questIdDisplay ?? '…'}</code>
-            </p>
-            <button type="button" className="primary" onClick={completeQuest} disabled={busy}>
-              {busy ? 'Recording…' : 'Mark quest complete (recordQuest)'}
-            </button>
-          </>
+            <div className="quest-code"><span className="field-label">Your quest code</span><CodeValue value={session?.questIdHex ?? ''} label="quest id" /></div>
+            <button type="button" className="primary" onClick={completeQuest} disabled={busy}>{busy ? 'Saving your quest…' : 'Mark quest complete'}<span aria-hidden="true">→</span></button>
+          </div>
         )}
 
         {step === 3 && session?.recorded && (
-          <>
-            <div className="badge">Quest recorded on simulated ledger</div>
-            <p className="note">
-              Share the quest id with a buyer: <code>{session.questIdHex}</code>
-            </p>
-            <button type="button" className="secondary" onClick={downloadSession}>
-              Download session file
-            </button>
-            <button type="button" className="secondary" onClick={resetFlow}>
-              Reset seller demo
-            </button>
-          </>
+          <div className="step-content done-content">
+            <div className="success-symbol" aria-hidden="true"><span /></div>
+            <p className="eyebrow">ONE SMALL STEP, COMPLETED</p>
+            <h2 id="flow-heading" tabIndex={-1}>Your quest is saved.</h2>
+            <p className="flow-description">Saved locally. Only a code, not your personal details, is on the ledger.</p>
+            <div className="quest-code"><span className="field-label">Share your quest code</span><CodeValue value={session.questIdHex} label="quest id" /></div>
+            <button type="button" className="primary" onClick={onCheckAsBuyer}>Check it as a buyer<span aria-hidden="true">→</span></button>
+            <details className="advanced session-options"><summary>Session options<span className="disclosure-arrow" aria-hidden="true" /></summary><div className="advanced-body"><p className="support-copy">The session file contains local secrets. Only share it for this demo.</p><button type="button" className="secondary" onClick={downloadSession}>Download session file</button><button type="button" className="text-button" onClick={resetFlow}>Start a new demo</button></div></details>
+          </div>
         )}
-
-        {error && <p className="note" style={{ color: 'var(--danger)' }}>{error}</p>}
-      </div>
-
-      <div className="grid">
-        <LedgerPanel ledgerView={ledgerView} />
-        <DemoLog entries={demoLog} />
-      </div>
+        {error && <p className="error-message" role="alert">{error}</p>}
+      </section>
+      <aside className="support-panels" aria-label="Demo details"><LedgerPanel ledgerView={ledgerView} /><DemoLog entries={demoLog} /></aside>
     </div>
   );
 }

@@ -9,6 +9,7 @@ export default function App() {
   const [mode, setMode] = useState('seller');
   const [session, setSession] = useState(() => loadSession());
   const [demoLog, setDemoLog] = useState(() => loadLog());
+  const [sellerStep, setSellerStep] = useState(session?.recorded ? 3 : 0);
 
   const appendLog = useCallback((message) => {
     const entry = { at: new Date().toISOString(), message };
@@ -19,76 +20,97 @@ export default function App() {
     });
   }, []);
 
-  const updateSession = useCallback(
-    (next) => {
-      setSession(next);
-      if (next) {
-        sessionStorage.setItem(SESSION_KEY, JSON.stringify(next));
-      } else {
-        sessionStorage.removeItem(SESSION_KEY);
-      }
-    },
-    [setSession]
-  );
+  const updateSession = useCallback((next) => {
+    setSession(next);
+    if (next) sessionStorage.setItem(SESSION_KEY, JSON.stringify(next));
+    else sessionStorage.removeItem(SESSION_KEY);
+  }, []);
 
   const ledgerView = useMemo(() => session?.ledger ?? null, [session]);
 
+  function openBuyer() {
+    setMode('buyer');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    requestAnimationFrame(() => document.getElementById('flow-heading')?.focus());
+  }
+
+  function handleTabKey(event) {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    const next = event.key === 'Home' ? 'seller' : event.key === 'End' ? 'buyer' : mode === 'seller' ? 'buyer' : 'seller';
+    setMode(next);
+    document.getElementById(`${next}-tab`)?.focus();
+  }
+
   return (
     <div className="app">
-      <header>
-        <h1>Quest Attestation — Midnight Buildathon Demo</h1>
-        <p>
-          Local browser simulator for the QuestAttestation Compact contract (0.31.1 / runtime
-          0.16.0). Seller records a quest on the simulated public ledger; a buyer checks an
-          attestation with a quest id and challenge. No Midnight network connection in this build.
-        </p>
+      <a className="skip-link" href="#demo-panel">Skip to the demo</a>
+      <header className="app-header">
+        <div className="brand-line">
+          <span className="wordmark">refacton<span className="brand-dot">.</span></span>
+          <span className="demo-label">MIDNIGHT DEMO</span>
+        </div>
+        <h1>Small steps. Real progress.</h1>
+        <p>Show that you finished a skill quest without handing over your personal data.</p>
       </header>
 
-      <nav className="tabs" aria-label="Demo mode">
-        <button
-          type="button"
-          className={mode === 'seller' ? 'active' : ''}
-          onClick={() => setMode('seller')}
-        >
-          Seller
-        </button>
-        <button
-          type="button"
-          className={mode === 'buyer' ? 'active' : ''}
-          onClick={() => setMode('buyer')}
-        >
-          Buyer
-        </button>
+      <nav className="tabs" role="tablist" aria-label="Demo mode">
+        {['seller', 'buyer'].map((tab) => (
+          <button
+            key={tab}
+            id={`${tab}-tab`}
+            type="button"
+            role="tab"
+            aria-selected={mode === tab}
+            aria-controls="demo-panel"
+            tabIndex={mode === tab ? 0 : -1}
+            className={mode === tab ? 'active' : ''}
+            onClick={() => setMode(tab)}
+            onKeyDown={handleTabKey}
+          >
+            {tab === 'seller' ? 'Seller' : 'Buyer'}
+            <span>{tab === 'seller' ? 'Finish a quest' : 'Check a quest'}</span>
+          </button>
+        ))}
       </nav>
 
-      {mode === 'seller' ? (
-        <SellerFlow
-          session={session}
-          onSessionChange={updateSession}
-          appendLog={appendLog}
-          ledgerView={ledgerView}
-          demoLog={demoLog}
-        />
-      ) : (
-        <BuyerFlow
-          session={session}
-          onSessionChange={updateSession}
-          appendLog={appendLog}
-          ledgerView={ledgerView}
-          demoLog={demoLog}
-        />
-      )}
+      <main id="demo-panel" role="tabpanel" aria-labelledby={`${mode}-tab`} tabIndex={-1}>
+        {mode === 'seller' ? (
+          <SellerFlow
+            session={session}
+            onSessionChange={updateSession}
+            appendLog={appendLog}
+            ledgerView={ledgerView}
+            demoLog={demoLog}
+            step={session?.recorded ? 3 : sellerStep}
+            onStepChange={setSellerStep}
+            onCheckAsBuyer={openBuyer}
+          />
+        ) : (
+          <BuyerFlow
+            session={session}
+            onSessionChange={updateSession}
+            appendLog={appendLog}
+            ledgerView={ledgerView}
+            demoLog={demoLog}
+            onStartSeller={() => { setSellerStep(0); setMode('seller'); }}
+          />
+        )}
+      </main>
 
       <footer>
-        <p>
-          Privacy note (honest demo): repeated checks of the same record can be linked because the
-          contract discloses the commitment during each check. Buyer-side data protection is out of
-          scope for this wave.
-        </p>
-        <p>
-          Repository:{' '}
-          <a href="https://github.com/GIZMON-frapetino/refacton_midnight">refacton_midnight</a>
-        </p>
+        <details className="about-demo">
+          <summary>About this demo<span className="disclosure-arrow" aria-hidden="true" /></summary>
+          <div className="about-body">
+            <p><span className="contract-tag">contract</span> Quest recording, checks and the public ledger use the QuestAttestation Compact contract in a local browser simulator (compiler 0.31.1 / runtime 0.16.0).</p>
+            <p><span className="mock-tag">mock</span> The plan, quest content and walkthrough are demo examples.</p>
+            <p><strong>No Midnight network connection in this build.</strong> No wallet or network transaction is involved.</p>
+            <p>Privacy note: repeated checks of the same record can be linked because the contract discloses the same commitment during each check. Buyer-side data protection is outside this demo's scope.</p>
+            <p>Local session files include secrets. Share them only when trying this demo with someone you trust.</p>
+            <a href="https://github.com/GIZMON-frapetino/refacton_midnight">View the repository</a>
+          </div>
+        </details>
+        <p className="footer-note">A local demo. Your next small step is yours.</p>
       </footer>
     </div>
   );

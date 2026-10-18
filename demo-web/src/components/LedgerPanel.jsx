@@ -1,39 +1,33 @@
+import CodeValue from './CodeValue.jsx';
+import Disclosure from './Disclosure.jsx';
+
 export default function LedgerPanel({ ledgerView }) {
-  if (!ledgerView) {
-    return (
-      <div className="panel">
-        <h2>
-          Public ledger (simulator) <span className="contract-tag">contract</span>
-        </h2>
-        <p className="note">No record yet. Complete the seller quest flow to populate the ledger.</p>
-      </div>
-    );
-  }
+  const counter = ledgerView?.counter ?? '0';
+  const commitments = ledgerView?.commitments ?? [];
+  const nullifiers = ledgerView?.nullifiers ?? [];
 
   return (
-    <div className="panel">
-      <h2>
-        Public ledger (simulator) <span className="contract-tag">contract</span>
-      </h2>
-      <p className="note">Values below come from <code>ledger()</code> after circuit calls.</p>
-      <h3>Counter</h3>
-      <div className="hex-row">{ledgerView.counter}</div>
-      <h3>Commitments ({ledgerView.commitments.length})</h3>
-      {ledgerView.commitments.length === 0 ? (
-        <p className="note">(empty)</p>
+    <Disclosure title="Public ledger" badge="contract">
+      <p className="support-copy">Codes only. No personal details.</p>
+      <div className="ledger-stats" aria-label="Ledger counts">
+        <div><strong>{counter}</strong><span>Records</span></div>
+        <div><strong>{commitments.length}</strong><span>Commitments</span></div>
+        <div><strong>{nullifiers.length}</strong><span>Nullifiers</span></div>
+      </div>
+      {!ledgerView ? (
+        <p className="support-copy">Your first record will appear after you finish a quest.</p>
       ) : (
-        ledgerView.commitments.map((c) => (
-          <div key={c} className="hex-row">{c}</div>
-        ))
+        <details className="ledger-code-details">
+          <summary>View ledger codes<span className="disclosure-arrow" aria-hidden="true" /></summary>
+          <div className="ledger-codes">
+            <h3>Commitments ({commitments.length})</h3>
+            {commitments.map((value, i) => <CodeValue key={value} value={value} label={`commitment ${i + 1}`} />)}
+            <h3>Nullifiers ({nullifiers.length})</h3>
+            {nullifiers.map((value, i) => <CodeValue key={value} value={value} label={`nullifier ${i + 1}`} />)}
+            <p className="support-copy">Read from <code>ledger()</code> after the contract call.</p>
+          </div>
+        </details>
       )}
-      <h3>Nullifiers ({ledgerView.nullifiers.length})</h3>
-      {ledgerView.nullifiers.length === 0 ? (
-        <p className="note">(empty)</p>
-      ) : (
-        ledgerView.nullifiers.map((n) => (
-          <div key={n} className="hex-row">{n}</div>
-        ))
-      )}
-    </div>
+    </Disclosure>
   );
 }

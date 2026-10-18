@@ -1,28 +1,30 @@
+import Disclosure from './Disclosure.jsx';
+
 export default function DemoLog({ entries }) {
   return (
-    <div className="panel">
-      <h2>
-        Demo log <span className="mock-tag">mock ui</span>
-      </h2>
-      <p className="note">Narrative steps for the video flow; not read from the contract.</p>
-      <div className="log" aria-live="polite">
+    <Disclosure title="What happened" badge="mock">
+      <p className="support-copy">Your actions, in order.</p>
+      <div className="log">
         {entries.length === 0 ? (
-          <div className="log-entry">Waiting for actions…</div>
+          <p className="empty-log">Your steps will appear here.</p>
         ) : (
-          entries.map((e, i) => (
-            <div key={`${e.at}-${i}`} className="log-entry">
-              <strong>{formatTime(e.at)}</strong> — {e.message}
-            </div>
-          ))
+          <ol>
+            {entries.map((entry, i) => (
+              <li key={`${entry.at}-${i}`}>
+                <time dateTime={entry.at}>{formatTime(entry.at)}</time>
+                <p>{entry.message}</p>
+              </li>
+            ))}
+          </ol>
         )}
       </div>
-    </div>
+    </Disclosure>
   );
 }
 
 function formatTime(iso) {
   try {
-    return new Date(iso).toLocaleTimeString();
+    return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   } catch {
     return iso;
   }
