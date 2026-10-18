@@ -76,7 +76,8 @@
   font-weight: 600;
   letter-spacing: 0.04em;
 }
-.top-page .top-case h2 {
+.top-page .top-case h2,
+.top-page .top-case h1 {
   margin-top: 8px;
   font-size: 24px;
   line-height: 1.25;
@@ -164,3 +165,23 @@
   .top-page { padding-top: 28px; padding-bottom: 36px; }
   .top-page .top-hero h1 { font-size: 36px; }
 }
+
+/* Screen 1 keeps the reference home's simple centered introduction.
+   Sample-case and how-it-works content now belong to screen 2. */
+.top-page.top-landing {
+  display: flex;
+  flex-direction: column;
+  min-height: 100svh;
+}
+.top-landing .top-header,
+.top-landing .top-footer { flex-shrink: 0; }
+.top-landing .top-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  padding: 32px 0;
+}
+.top-landing .top-hero { margin-top: 0; text-align: center; }
+.top-landing .top-cta { justify-content: center; min-height: 60px; margin-top: 32px; }
+.case-page #case-heading:focus { outline: none; }

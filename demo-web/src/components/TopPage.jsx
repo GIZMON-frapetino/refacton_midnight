@@ -1,28 +1,29 @@
 import { useState } from 'react';
 import App from '../App.jsx';
+import CasePage from './CasePage.jsx';
 import refactonLogo from '../assets/refacton-logo.png';
 import './TopPage.css';
 
-const STEPS = [
-  'Pick a plan that matches your problem',
-  'Follow small steps, starting with a 15-minute one',
-  "Stuck? Check the engineer's record, then ask them",
-];
-
 export default function TopPage() {
-  const [demoOpened, setDemoOpened] = useState(false);
+  const [screen, setScreen] = useState('top');
 
   function openExistingDemo(event) {
     event.preventDefault();
-    setDemoOpened(true);
+    setScreen('demo');
     window.scrollTo(0, 0);
     requestAnimationFrame(() => document.getElementById('demo-panel')?.focus());
   }
 
-  if (demoOpened) return <App />;
+  function startDemo() {
+    setScreen('case');
+    window.scrollTo(0, 0);
+    requestAnimationFrame(() => document.getElementById('case-heading')?.focus());
+  }
+
+  if (screen === 'demo') return <App />;
 
   return (
-    <div className="top-page">
+    <div className={`top-page ${screen === 'top' ? 'top-landing' : 'case-page'}`}>
       <header className="top-header">
         <span className="top-brand" aria-label="Refacton">
           <img src={refactonLogo} alt="" width="22" height="26" />
@@ -32,31 +33,16 @@ export default function TopPage() {
       </header>
 
       <main className="top-main">
-        <section className="top-hero" aria-labelledby="top-heading">
-          <h1 id="top-heading">Automate office work by following an engineer's real steps.</h1>
-          <p>Do it in-house. Ask the engineer only where you get stuck. The engineer's name is never shown.</p>
-        </section>
-
-        <section className="top-case" aria-labelledby="case-heading">
-          <p className="top-case-label">Sample case</p>
-          <h2 id="case-heading">Invoice intake</h2>
-          <p className="top-case-description">Invoices arrive by email and on paper. Staff type each one into the accounting sheet by hand. It takes hours every month, and typos slip in.</p>
-        </section>
-
-        <button type="button" className="top-cta" onClick={openExistingDemo}>Find steps for this case<span aria-hidden="true">→</span></button>
-
-        <section className="top-how" aria-labelledby="how-heading">
-          <h2 id="how-heading">How it works</h2>
-          <ol className="top-steps">
-            {STEPS.map((step, index) => (
-              <li key={step}>
-                <span className="top-step-number" aria-hidden="true">{index + 1}</span>
-                <p>{step}</p>
-              </li>
-            ))}
-          </ol>
-        </section>
-
+        {screen === 'top' ? (
+          <>
+            <section className="top-hero" aria-labelledby="top-heading">
+              <h1 id="top-heading">Follow an engineer's real steps. Ask only where you get stuck.</h1>
+            </section>
+            <button type="button" className="top-cta" onClick={startDemo}>Start demo</button>
+          </>
+        ) : (
+          <CasePage onFindSteps={openExistingDemo} />
+        )}
       </main>
 
       <footer className="top-footer">
