@@ -43,6 +43,8 @@ export default function TopPage() {
           <p className="top-case-description">Invoices arrive by email and on paper. Staff type each one into the accounting sheet by hand. It takes hours every month, and typos slip in.</p>
         </section>
 
+        <button type="button" className="top-cta" onClick={openExistingDemo}>Find steps for this case<span aria-hidden="true">→</span></button>
+
         <section className="top-how" aria-labelledby="how-heading">
           <h2 id="how-heading">How it works</h2>
           <ol className="top-steps">
@@ -55,7 +57,6 @@ export default function TopPage() {
           </ol>
         </section>
 
-        <button type="button" className="top-cta" onClick={openExistingDemo}>Find steps for this case<span aria-hidden="true">→</span></button>
       </main>
 
       <footer className="top-footer">
