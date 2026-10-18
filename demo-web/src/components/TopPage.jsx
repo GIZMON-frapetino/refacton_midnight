@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import App from '../App.jsx';
-import CasePage from './CasePage.jsx';
+import ChatFlow from './ChatFlow.jsx';
 import refactonLogo from '../assets/refacton-logo.png';
 import './TopPage.css';
 
@@ -15,15 +15,15 @@ export default function TopPage() {
   }
 
   function startDemo() {
-    setScreen('case');
+    setScreen('chat');
     window.scrollTo(0, 0);
-    requestAnimationFrame(() => document.getElementById('case-heading')?.focus());
+    requestAnimationFrame(() => document.getElementById('chat-heading')?.focus());
   }
 
   if (screen === 'demo') return <App />;
 
   return (
-    <div className={`top-page ${screen === 'top' ? 'top-landing' : 'case-page'}`}>
+    <div className={`top-page ${screen === 'top' ? 'top-landing' : 'chat-page'}`}>
       <header className="top-header">
         <span className="top-brand" aria-label="Refacton">
           <img src={refactonLogo} alt="" width="22" height="26" />
@@ -41,7 +41,7 @@ export default function TopPage() {
             <button type="button" className="top-cta" onClick={startDemo}>Start demo</button>
           </>
         ) : (
-          <CasePage onFindSteps={openExistingDemo} />
+          <ChatFlow />
         )}
       </main>
 
