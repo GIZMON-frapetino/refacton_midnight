@@ -204,3 +204,19 @@ footer { margin-top: 24px; }
   .plan-list li > div { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 10px; }
   .plan-list p { margin-top: 0; }
 }
+
+/* Compact wordmark and judge-requested context lines. */
+.wordmark { font-size: 22px; line-height: 1; letter-spacing: -0.8px; }
+.app-header .privacy-line { margin-top: 6px; font-size: 14px; line-height: 1.45; }
+.simulator-note, .app-header .simulator-note { color: var(--muted); font-size: 13px; line-height: 1.45; }
+.app-header .simulator-note { max-width: 760px; margin-top: 8px; }
+.disclosure-body > .simulator-note { margin-bottom: 12px; }
+@media (max-width: 899px) {
+  .wordmark { font-size: 21px; }
+  .app-header .simulator-note { font-size: 12px; }
+}
+
+@media (max-width: 899px) {
+  .seller-card .quest-list { margin-top: 10px; }
+  .seller-card .quest-list li { padding: 6px 0; }
+}

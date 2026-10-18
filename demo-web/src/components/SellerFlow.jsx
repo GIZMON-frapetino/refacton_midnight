@@ -6,12 +6,12 @@ import LedgerPanel from './LedgerPanel.jsx';
 import DemoLog from './DemoLog.jsx';
 import CodeValue from './CodeValue.jsx';
 
-const GOAL = 'Build a Midnight app';
-const QUEST_TITLE = 'Set up your workspace';
+const GOAL = 'Automate invoice intake with AI';
+const QUEST_TITLE = 'Build the extraction step';
 const QUEST_TASKS = [
-  'Install Node.js. Open the repo.',
-  'Install packages. Run 16 tests.',
-  'Explore the quest contract.',
+  'Collect 10 sample invoices.',
+  'Extract date, amount, vendor.',
+  'Check results against the originals.',
 ];
 
 export default function SellerFlow({ session, onSessionChange, appendLog, ledgerView, demoLog, step, onStepChange, onCheckAsBuyer }) {
@@ -107,9 +107,9 @@ export default function SellerFlow({ session, onSessionChange, appendLog, ledger
             <h2 id="flow-heading" tabIndex={-1}>{GOAL}</h2>
             <p className="flow-description">One small step at a time.</p>
             <ol className="plan-list">
-              <li><span>01</span><div><strong>Get set up</strong><p>Set up your workspace.</p></div></li>
-              <li><span>02</span><div><strong>Try the demo</strong><p>Save a quest. Try a check.</p></div></li>
-              <li><span>03</span><div><strong>Keep building</strong><p>Connect to a network later.</p></div></li>
+              <li><span>01</span><div><strong>Map the invoice flow</strong></div></li>
+              <li><span>02</span><div><strong>Build the extraction step</strong></div></li>
+              <li><span>03</span><div><strong>Hand off to accounting</strong></div></li>
             </ol>
             <button type="button" className="primary" onClick={advanceToQuest}>Use this plan<span aria-hidden="true">→</span></button>
           </div>

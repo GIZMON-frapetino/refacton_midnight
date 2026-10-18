@@ -75,8 +75,8 @@ export default function BuyerFlow({ session, onSessionChange, appendLog, ledgerV
 
         {result && (
           <div className={`result-card ${result.status === 'match' ? 'match' : 'no-match'}`} role="status" aria-live="polite">
-            <p className="result-label">{result.status === 'match' ? '合う' : '合わない'}</p>
-            <h3>{result.status === 'match' ? 'Match: this quest was completed.' : 'No match: no record for this.'}</h3>
+            <p className="result-label">{result.status === 'match' ? 'MATCH' : 'NO MATCH'}</p>
+            <h3>{result.status === 'match' ? 'Match: this quest was completed.' : 'No match: no record for this code.'}</h3>
             <p>{result.status === 'match' ? 'This code matches the saved quest record.' : differentSecret ? 'A different secret was used. The saved record has not changed.' : 'The quest code and local material do not match the saved record.'}</p>
             <details className="result-details"><summary>Details<span className="disclosure-arrow" aria-hidden="true" /></summary><div>{result.status === 'match' ? <><p>Challenge-bound response</p><CodeValue value={result.responseHex} label="response" /></> : <p className="technical-detail">{result.detail}</p>}</div></details>
           </div>

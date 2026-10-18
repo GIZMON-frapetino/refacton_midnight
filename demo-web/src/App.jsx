@@ -52,6 +52,8 @@ export default function App() {
         </div>
         <h1>Small steps. Real progress.</h1>
         <p>Show that you finished a skill quest without handing over your personal data.</p>
+        <p className="privacy-line">Your name stays with you. Buyers see only a match.</p>
+        <p className="simulator-note">Runs the QuestAttestation contract in a local simulator in your browser. Not deployed to a network yet.</p>
       </header>
 
       <nav className="tabs" role="tablist" aria-label="Demo mode">
@@ -69,7 +71,7 @@ export default function App() {
             onKeyDown={handleTabKey}
           >
             {tab === 'seller' ? 'Seller' : 'Buyer'}
-            <span>{tab === 'seller' ? 'Finish a quest' : 'Check a quest'}</span>
+            <span>{tab === 'seller' ? 'AI engineer · Record your work' : 'Business · Check a work record'}</span>
           </button>
         ))}
       </nav>

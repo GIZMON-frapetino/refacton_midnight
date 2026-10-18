@@ -8,6 +8,7 @@ export default function LedgerPanel({ ledgerView }) {
 
   return (
     <Disclosure title="Public ledger" badge="contract">
+      <p className="simulator-note">Runs the QuestAttestation contract in a local simulator in your browser. Not deployed to a network yet.</p>
       <p className="support-copy">Codes only. No personal details.</p>
       <div className="ledger-stats" aria-label="Ledger counts">
         <div><strong>{counter}</strong><span>Records</span></div>
