@@ -220,3 +220,6 @@ footer { margin-top: 24px; }
   .seller-card .quest-list { margin-top: 10px; }
   .seller-card .quest-list li { padding: 6px 0; }
 }
+
+.brand-lockup { display: inline-flex; align-items: center; gap: 8px; }
+.brand-mark { display: block; width: 22px; height: 26px; object-fit: contain; flex-shrink: 0; }

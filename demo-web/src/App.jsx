@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import SellerFlow from './components/SellerFlow.jsx';
 import BuyerFlow from './components/BuyerFlow.jsx';
 import { validateSession } from './lib/session.js';
+import refactonLogo from './assets/refacton-logo.png';
 
 const SESSION_KEY = 'quest-attestation-demo-session';
 
@@ -47,7 +48,7 @@ export default function App() {
       <a className="skip-link" href="#demo-panel">Skip to the demo</a>
       <header className="app-header">
         <div className="brand-line">
-          <span className="wordmark">refacton<span className="brand-dot">.</span></span>
+          <span className="brand-lockup"><img className="brand-mark" src={refactonLogo} alt="" width="22" height="26" /><span className="wordmark">refacton<span className="brand-dot">.</span></span></span>
           <span className="demo-label">MIDNIGHT DEMO</span>
         </div>
         <h1>Small steps. Real progress.</h1>
