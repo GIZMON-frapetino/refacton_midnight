@@ -1,28 +1,36 @@
 # QuestAttestation — Midnight Wave 3
 
-A Compact record contract with private Merkle membership checks. This branch implements the first Wave 3 change; execution and browser checks are tested locally. Preprod deployment and issuer authorization are planned separately, not delivered by this branch. A record states that its private material was registered; it does not establish that real-world work happened.
+A Compact record contract with private Merkle membership checks and registered-issuer authorization. This branch builds on PR A and implements PR B. Execution and browser helpers are tested locally; Preprod deployment and wallet-backed transactions are planned separately. A registered issuer can approve a record, but the software does not establish that real-world work happened or identify a human reviewer.
 
 ## Contract
 
-`commitments` is a `MerkleTree<16, Bytes<32>>` with capacity 65,536 leaves. `nullifiers` remains a `Set<Bytes<32>>`, and `counter` counts successful registrations. `recordQuest()` computes the existing domain-separated commitment from quest ID, user secret, salt and 16-bit version; it derives the nullifier from local secret key and quest ID, rejects an already-used nullifier, inserts a leaf and increments the counter. A different local key can register again: there is no person-identity check.
+`commitments` is a `MerkleTree<16, Bytes<32>>` with capacity 65,536 leaves. `nullifiers` is a `Set<Bytes<32>>`; `counter` counts registrations. The existing domain-separated commitment binds quest ID, user secret, salt and 16-bit version. The nullifier binds local secret key and quest ID. A duplicate nullifier fails; a different local key can register another record because there is no person-identity check.
 
-`checkAttestation(challenge)` now takes only a public 32-byte challenge. Quest ID, version, user secret, salt and the membership path are private witnesses. The circuit asserts that the path leaf equals the recomputed commitment, then checks its computed root against the current tree root. It returns the existing domain-separated hash of user secret, challenge and quest ID. The commitment and nullifier do not enter its public membership query. A wrong secret, borrowed leaf or invalid path cannot pass that check.
+`checkAttestation(challenge)` takes only a public 32-byte challenge. Quest ID, version, user secret, salt and path are private witnesses. The path leaf must equal the recomputed commitment, and its root must be the current root. The result hashes user secret, challenge and quest ID. The public commitment-membership query was removed. `hasNullifier(n)` remains a public diagnostic exposing its argument; `getCounterValue()` reads the public count.
 
-The previous public `hasCommitment` circuit was removed; it would reintroduce an individual record query. `hasNullifier(n)` remains a public diagnostic and exposes the queried nullifier. `getCounterValue()` returns the public count. Contract bindings and all four circuit key pairs are regenerated with the pinned official compiler.
+## Issuer authorization
+
+The constructor takes a public administrator key identifier and a nonzero public authorization scope. Generate independent random 32-byte administrator and issuer secrets. `pureCircuits.deriveAdminKey(secret)` and `deriveIssuerKey(secret)` produce domain-separated public **hash identifiers**. These are application-specific secret-possession keys, not interoperable EC public keys or an external signature format. The pinned compiler does not supply the newer signature APIs; those would require a separately reviewed toolchain change.
+
+An administrator holding the matching private secret calls `registerIssuer(key)` to add a public issuer identifier. Merely supplying a public administrator/issuer identifier as a secret does not authorize the caller. Unauthorized self-registration, zero keys and duplicate registration fail.
+
+A registered issuer calls `authorizeRecord()` with its own private secret plus the recipient's quest ID, commitment and derived nullifier as private witnesses. The issuer can receive those three values from the recipient without receiving the recipient's secret, local key or salt. The circuit publishes an exact authorization marker: a domain-separated hash of deployment scope, quest ID, commitment and nullifier. `recordQuest()` recomputes that marker from its own witnesses and requires it to be present **before** updating tree, nullifier or counter. Changing any bound record material invalidates the approval. Approval must be made for each new record; registering an issuer is not enough.
+
+The recipient does not receive the issuer secret and does not need it for recording or checking. Use independent secrets and a unique random scope for each deployment. There is no issuer name database, external signing/relay interface, key rotation, expiry or revocation. An already-issued marker remains valid for its exact record; markers accumulate. A compromised issuer secret can authorize new records; a compromised administrator secret can add issuers. Treat any production key management and reviewer policy as additional work.
 
 ## Known limitations and public disclosures
 
-Registration exposes the nullifier, counter update, tree position/update and leaf hash used by Compact's Merkle storage. The Merkle tree structure, current root and population are public. Its inserted storage hash can be compared to a guessed commitment; high-entropy secrets and salt remain essential. The tree is not a secret database.
+The public ledger contains tree state/root/position/population, stored leaf hashes, nullifiers, counter, administrator hash identifier, deployment scope, registered issuer identifiers and authorization markers. `authorizeRecord` discloses its issuer identifier and marker. `recordQuest` discloses the same marker plus nullifier and tree update. Observers can link an authorization to its registration and issuer. This is intentional issuer attribution, not a private issuer registry. Guessing a complete commitment permits comparisons to its stored tree hash; high-entropy secrets and salt are essential.
 
-A check's public data contains its challenge, aggregate root, challenge-bound response, query structure and success condition. It does not disclose the commitment, membership path, selected leaf, quest ID, version, salt, user secret or local key. The shared root identifies a tree snapshot and can appear in checks for different records or the same record. Therefore the requirement for literally no shared disclosed value is not achievable with a shared-root design. The tests instead establish that checks disclose no repeated **record-specific** membership identifier, using the generated public transcript, input and output.
+A check's public data contains its challenge, aggregate root, challenge-bound response, query structure and success condition. It does not query/disclose the selected commitment, nullifier, path, issuer identifier, authorization marker, quest ID, version, salt or secret. The same aggregate root can appear in checks of different records and repeated checks. Literally no common disclosed value is incompatible with a shared-root design; tests assert absence of a repeated **record-specific** membership identifier instead.
 
-Fresh challenges give different responses; reusing a challenge for the same record repeats the response. Requesters must supply fresh unpredictable challenges and bind them to their application session. Challenge reuse/replay is not prevented by a stored challenge registry. A one-record tree gives an anonymity set of one, and a small population or root/timing patterns can narrow the possible record. Wallet identity, fees, transaction metadata and off-chain disclosures can still correlate activity. This change does not promise general anonymity.
+Fresh challenges give different responses; the same challenge repeats the response. There is no challenge-replay registry. Requesters must use fresh unpredictable challenges bound to their application session. One-record or small trees, root/timing patterns, wallet identity, fees, transaction metadata and off-chain disclosures can still correlate activity. No general anonymity claim is made.
 
-This is a current-root tree, not a history-accepting tree. A later registration invalidates old paths; retrieve a fresh path before executing a check. The supplied witness adapter uses `findPathForLeaf` for convenience, an O(n) scan; clients should retain the insertion index and use `pathForLeaf` at scale. Capacity exhaustion, migration, revocation, issuer policy and application authentication need further design. No independent security audit has been performed.
+This is a current-root tree: new registrations invalidate old paths. Fetch a fresh path before checking. The sample witness uses an O(n) `findPathForLeaf` scan; indexed path retrieval is preferable at scale. Capacity exhaustion, migrations, application authentication and independent security audit remain open work.
 
 ## Reproduce
 
-Use Node.js 20 or 22 and Compact compiler 0.31.1. The compiler reports Ledger 8.0.2 and runtime 0.16.0. Install the entire compiler bundle in the repository root (the wrapper needs its neighboring executables):
+Use Node.js 20 or 22, Compact 0.31.1, Ledger 8.0.2 and runtime 0.16.0. Install the whole compiler bundle (the wrapper needs neighboring executables):
 
 ```bash
 curl -fL -o compactc.zip https://github.com/LFDT-Minokawa/compact/releases/download/compactc-v0.31.1/compactc_v0.31.1_x86_64-unknown-linux-musl.zip
@@ -38,11 +46,11 @@ cd ..
 npm run test:demo-web
 ```
 
-Jest has 20 tests: successful/multiple registrations, duplicate rejection, correct membership, wrong material, borrowed/corrupt/stale paths, fresh path recovery, actual public-transcript disclosures, challenge reuse, read-only state, real nullifier queries and counter values. The browser helpers have 18 regression checks. These are compiled-contract simulator checks, not network transaction tests. GitHub Actions also compiles the Compact source; no workflow files were changed for this branch.
+All six stateful circuits have regenerated keys: record, check, nullifier query, counter query, issuer registration and record authorization. Two pure key-identifier helpers are generated too. Jest has 32 compiled-contract simulator tests: 20 membership/record tests inherited from PR A and 12 explicit issuer-gate tests, including valid/unknown issuer, public-key impersonation, unauthorized registry access, exact-material binding, scope, duplicates and public transcript checks. The browser helper suite has 20 regressions. These are not network transaction tests. Existing Actions compile and test jobs are unchanged.
 
 ## Browser demo
 
-`demo-web/` retains the business chat, sample plan and engineer record/check flow. Chat, task descriptions and work results are clearly sample content; no AI, payment or hiring occurs. The simulator executes `recordQuest` and `checkAttestation` and shows tree root, leaf count, nullifiers and count. Old Set-based saved sessions are rejected rather than relabeled as Merkle sessions. Session exports contain local secrets and must not be published.
+The business chat, six-step plan and sample work results remain sample content; no AI, payment or hiring occurs. A **fresh simulator only** generates temporary sample issuer/admin secrets, executes registration and approval, then calls `recordQuest`. The UI labels this local sample issuer setup, not an external review. Checks restore the saved issuer-aware public state and do not create new approvals. Old Set-based and pre-issuer sessions are rejected. Session files contain recipient secrets and must not be published; sample authority secrets are not exported.
 
 ```bash
 cd demo-web
@@ -51,10 +59,10 @@ npm run build
 npm run preview
 ```
 
-The existing GitHub Pages deployment branch is `cursor/midnight-demo-web-409a`. This feature branch does not replace that public deployment and is not merged into main.
+The existing public demo deployment branch remains `cursor/midnight-demo-web-409a`. This dependent feature branch is not merged into main or published over that deployment. PR B is based on PR A for a reviewable issuer-only delta; merge decisions belong to the owner.
 
 ## References
 
-[Official private-data guidance](https://docs.midnight.network/concepts/how-midnight-works/keeping-data-private) describes the path-leaf binding and root check. [Ledger data types](https://docs.midnight.network/compact/reference/ledger-adt) describes tree path methods; the current online reference targets a newer compiler, so this branch is compiled and tested with 0.31.1. [Pinned compiler release](https://github.com/LFDT-Minokawa/compact/releases/tag/compactc-v0.31.1).
+[Official private-data guidance](https://docs.midnight.network/concepts/how-midnight-works/keeping-data-private) describes private paths and hash-based authorization. [Compact security guidance](https://docs.midnight.network/compact/smart-contract-security). [Ledger types](https://docs.midnight.network/compact/reference/ledger-adt) describe path methods; current online docs target a newer compiler, while this branch is compiled with [0.31.1](https://github.com/LFDT-Minokawa/compact/releases/tag/compactc-v0.31.1).
 
 Apache-2.0. See [LICENSE](LICENSE).
