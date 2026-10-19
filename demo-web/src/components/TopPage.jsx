@@ -2,16 +2,22 @@ import { useRef, useState } from 'react';
 import ChatFlow from './ChatFlow.jsx';
 import SellerFlow from './SellerFlow.jsx';
 import useDemoSession from './useDemoSession.js';
+import NetworkPanel from './NetworkPanel.jsx';
 import refactonLogo from '../assets/refacton-logo.png';
 import './TopPage.css';
 import './BusinessFlow.css';
 
 export default function TopPage() {
+  const [mode, setMode] = useState('simulator');
+  return <DemoJourney key={mode} mode={mode} onModeChange={setMode} />;
+}
+
+function DemoJourney({ mode, onModeChange }) {
   const [screen, setScreen] = useState('top');
   const [businessStage, setBusinessStage] = useState('chat');
   const [engineerStep, setEngineerStep] = useState(2);
   const businessRef = useRef(null);
-  const { session, updateSession, demoLog, appendLog } = useDemoSession();
+  const { session, updateSession, demoLog, appendLog } = useDemoSession(mode);
 
   function openExistingDemo(event) {
     event?.preventDefault();
@@ -42,6 +48,7 @@ export default function TopPage() {
         <a className="top-engineer-link" href="#engineer-record" onClick={openExistingDemo}>Engineer view</a>
       </header>
 
+      <NetworkPanel mode={mode} onModeChange={onModeChange} />
       <main className="top-main">
         {screen === 'top' && (
           <>
@@ -61,7 +68,7 @@ export default function TopPage() {
         )}
       </main>
 
-      {!(screen === 'chat' && businessStage === 'final') && <footer className="top-footer"><p>Demo: runs in a local browser simulator, not on a network yet.</p></footer>}
+      {!(screen === 'chat' && businessStage === 'final') && <footer className="top-footer"><p>{mode === 'simulator' ? 'Demo: runs in a local browser simulator, not on a network yet.' : 'Preprod integration draft: deployment unfinished. No address supplied.'}</p></footer>}
     </div>
   );
 }
