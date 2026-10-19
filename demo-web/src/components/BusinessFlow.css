@@ -1,0 +1,63 @@
+.business-mount[hidden] { display: none !important; }
+.top-page .business-work,
+.top-page .business-check { margin-top: 24px; }
+.top-page .business-progress {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  color: var(--top-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+.top-page .business-work h1,
+.top-page .business-final h1 { font-size: 28px; line-height: 1.2; font-weight: 600; }
+.top-page #work-heading:focus,
+.top-page #final-heading:focus { outline: none; }
+.top-page .business-duration { margin-top: 12px; color: var(--top-accent); font-size: 14px; font-weight: 600; }
+.top-page .business-help { margin-top: 14px; color: var(--top-muted); font-size: 14px; line-height: 1.5; }
+.top-page .business-checklist { display: grid; gap: 10px; margin-top: 24px; }
+.top-page .business-checklist label { display: flex; align-items: flex-start; gap: 12px; padding: 14px; border: 1px solid var(--border); border-radius: 14px; background: white; font-size: 16px; cursor: pointer; }
+.top-page .business-checklist input { width: 20px; height: 20px; flex-shrink: 0; accent-color: var(--top-accent); margin: 2px 0 0; }
+.top-page .business-fields { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
+.top-page .business-fields button { min-height: 44px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 999px; background: white; color: var(--top-muted); font-size: 16px; }
+.top-page .business-fields button[aria-pressed='true'] { background: var(--accent-soft); border-color: #b7aaf2; color: var(--accent-hover); }
+.top-page .business-diagram { display: flex; align-items: center; gap: 5px; margin-top: 26px; }
+.top-page .business-diagram > div { flex: 1; min-width: 0; padding: 14px 4px; min-height: 88px; display: flex; flex-direction: column; justify-content: center; text-align: center; border: 1px solid var(--border); border-radius: 10px; background: white; font-size: 14px; font-weight: 600; line-height: 1.4; }
+.top-page .business-diagram small { font-size: 11px; font-weight: 400; margin-top: 4px; }
+.top-page .business-diagram > span { color: var(--top-muted); font-size: 13px; }
+.top-page .business-sample-result { margin-top: 26px; padding: 22px; border: 1px solid var(--border); border-radius: 18px; background: white; }
+.top-page .business-sample-result h2 { margin: 14px 0 8px; font-size: 27px; }
+.top-page .business-sample-result p { color: var(--top-muted); }
+.top-page .business-work .intro-note { margin-top: 16px; padding: 14px; background: white; border: 1px solid var(--border); }
+.top-page .business-work .quest-list { margin-top: 16px; }
+.top-page .business-work .quest-list li { padding: 8px 0; }
+.top-page .business-check .flow-layout,
+.top-page.engineer-page .flow-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.top-page .business-check .flow-card,
+.top-page.engineer-page .flow-card { padding: 20px; }
+.top-page .business-check .flow-card h2,
+.top-page.engineer-page .flow-card h2 { font-size: 27px; font-weight: 600; }
+.top-page .business-check .business-help { font-size: 12px; }
+.top-page .record-help-link { display: inline-flex; align-items: center; min-height: 44px; margin-top: 8px; font-size: 14px; }
+.top-page .business-check .primary,
+.top-page.engineer-page .primary { justify-content: center; border-radius: 12px; background: var(--top-accent); }
+.top-page .business-check .primary > span,
+.top-page.engineer-page .primary > span { display: none; }
+.top-page .business-check .check-again { width: 100%; margin-top: 18px; }
+.top-page .business-check .check-again > span { display: none; }
+.top-page .business-check .result-card { padding: 18px; }
+.top-page .business-check .result-label { font-size: 20px; }
+.top-page .business-check .result-card h3 { font-size: 23px; }
+.top-page.engineer-page #engineer-record { margin-top: 24px; }
+.top-page.engineer-page .intro-note { margin-top: 16px; }
+.top-page.engineer-page .intro-note p { font-size: 14px; }
+.top-page.engineer-page .ledger-stats { margin: 12px 0; }
+.top-page.engineer-page .disclosure-body > .simulator-note { font-size: 12px; }
+.top-page.engineer-page .support-copy { font-size: 13px; }
+.top-page.engineer-page .ledger-codes h3 { margin-top: 10px; }
+.top-page .business-final { margin-top: 110px; }
+.top-page .business-final h1 { margin-top: 20px; }
+.top-page .business-final p { margin-top: 24px; color: var(--top-muted); }
+.top-page .business-final small { display: block; margin-top: 18px; color: var(--top-muted); font-size: 12px; }

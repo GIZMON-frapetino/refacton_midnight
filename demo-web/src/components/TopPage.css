@@ -1,0 +1,187 @@
+/* Reference home: 24px page inset, 16px content gap, contained card,
+   32px section separation and pill CTA. Reference Today: small brand header,
+   white checklist surface and compact rows. All rules stay scoped to TOP. */
+.top-page {
+  --top-text: #3f3d3a;
+  --top-muted: #6b6965;
+  --top-accent: #6d5dfb;
+  --top-soft: #f5f3f0;
+  max-width: 560px;
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 20px 24px 28px;
+  background: #faf9f6;
+  color: var(--top-text);
+  font-family: Roboto, 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-size: 17px;
+  line-height: 1.5;
+}
+.top-page .top-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 44px;
+}
+.top-page .top-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 20px;
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: -0.6px;
+}
+.top-page .top-brand img {
+  display: block;
+  width: 22px;
+  height: 26px;
+  object-fit: contain;
+}
+.top-page .top-brand-dot { color: var(--top-accent); }
+.top-page .top-engineer-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--top-muted);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.top-page .top-engineer-link:hover { color: var(--top-accent); text-decoration: underline; }
+.top-page .top-hero { margin-top: 24px; }
+.top-page .top-hero h1 {
+  font-size: 32px;
+  line-height: 1.16;
+  font-weight: 600;
+  letter-spacing: -0.035em;
+}
+.top-page .top-hero > p {
+  margin-top: 16px;
+  color: var(--top-muted);
+  font-size: 17px;
+  line-height: 1.5;
+}
+.top-page .top-case {
+  margin-top: 32px;
+  padding: 24px;
+  border-radius: 32px;
+  background: var(--top-soft);
+}
+.top-page .top-case-label {
+  color: var(--top-muted);
+  font-size: 12px;
+  line-height: 1.4;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.top-page .top-case h2,
+.top-page .top-case h1 {
+  margin-top: 8px;
+  font-size: 24px;
+  line-height: 1.25;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+.top-page .top-case-description {
+  margin-top: 12px;
+  color: var(--top-muted);
+  font-size: 17px;
+  line-height: 1.5;
+}
+.top-page .top-how {
+  margin-top: 24px;
+  padding: 20px;
+  border-radius: 16px;
+  background: #ffffff;
+}
+.top-page .top-how h2 {
+  font-size: 20px;
+  line-height: 1.3;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.top-page .top-steps { list-style: none; margin: 16px 0 0; padding: 0; }
+.top-page .top-steps li {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid #f1efeb;
+}
+.top-page .top-steps li:first-child { padding-top: 0; }
+.top-page .top-steps li:last-child { padding-bottom: 0; border-bottom: 0; }
+.top-page .top-step-number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: #efedff;
+  color: var(--top-accent);
+  font-size: 13px;
+  line-height: 1;
+  font-weight: 600;
+}
+.top-page .top-steps p { font-size: 16px; line-height: 1.5; }
+.top-page .top-cta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 56px;
+  margin-top: 20px;
+  padding: 16px 22px;
+  border: 0;
+  border-radius: 80px;
+  background: var(--top-accent);
+  color: #ffffff;
+  font-size: 17px;
+  line-height: 1.3;
+  font-weight: 600;
+  transition: background .15s ease;
+}
+.top-page .top-cta:hover { background: #5b49e6; }
+.top-page .top-cta > span { font-size: 20px; line-height: 1; }
+.top-page .top-cta:focus-visible,
+.top-page .top-engineer-link:focus-visible { outline-color: var(--top-accent); }
+.top-page .top-footer {
+  margin-top: 16px;
+  color: var(--top-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+@media (max-width: 374px) {
+  .top-page { padding-left: 20px; padding-right: 20px; }
+  .top-page .top-hero h1 { font-size: 30px; }
+  .top-page .top-case { padding: 22px; }
+}
+@media (min-width: 600px) {
+  .top-page { padding-top: 28px; padding-bottom: 36px; }
+  .top-page .top-hero h1 { font-size: 36px; }
+}
+
+/* Screen 1 keeps the reference home's simple centered introduction.
+   Sample-case and how-it-works content now belong to screen 2. */
+.top-page.top-landing {
+  display: flex;
+  flex-direction: column;
+  min-height: 100svh;
+}
+.top-landing .top-header,
+.top-landing .top-footer { flex-shrink: 0; }
+.top-landing .top-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  padding: 32px 0;
+}
+.top-landing .top-hero { margin-top: 0; text-align: center; }
+.top-landing .top-cta { justify-content: center; min-height: 60px; margin-top: 32px; }
+.case-page #case-heading:focus { outline: none; }

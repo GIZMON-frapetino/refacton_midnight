@@ -308,6 +308,10 @@ Ran all test suites.
 - Documentation and setup instructions
 - Toolchain installation (0.31.1 for Ledger 8 compatibility)
 
+### Midnight demo web (`demo-web/`)
+
+Browser demo for the Buildathon (seller `recordQuest` + buyer `checkAttestation` against the local simulator). See [demo-web/README.md](demo-web/README.md).
+
 ### Next Steps (Not Yet Implemented)
 
 - **Preprod Deployment**: Deploy contract to Midnight Preprod testnet
