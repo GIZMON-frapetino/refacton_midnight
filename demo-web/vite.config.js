@@ -29,6 +29,8 @@ export default defineConfig({
       '@contract': path.resolve(repoRoot, 'compiled/contract/index.js'),
       '@midnight-ntwrk/compact-runtime': runtimeEntry,
       '@midnight-ntwrk/onchain-runtime-v3': onchainBrowserEntry,
+      'isomorphic-ws': path.resolve(rootDir, 'src/lib/browser-websocket.js'),
+      'assert': require.resolve('assert/'),
     },
     conditions: ['browser', 'import', 'module', 'default'],
   },
