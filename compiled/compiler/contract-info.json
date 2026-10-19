@@ -26,35 +26,11 @@
             "type-name": "Bytes",
             "length": 32
           }
-        },
-        {
-          "name": "qId",
-          "type": {
-            "type-name": "Bytes",
-            "length": 32
-          }
         }
       ],
       "result-type": {
         "type-name": "Bytes",
         "length": 32
-      }
-    },
-    {
-      "name": "hasCommitment",
-      "pure": false,
-      "proof": true,
-      "arguments": [
-        {
-          "name": "comm",
-          "type": {
-            "type-name": "Bytes",
-            "length": 32
-          }
-        }
-      ],
-      "result-type": {
-        "type-name": "Boolean"
       }
     },
     {
@@ -130,6 +106,65 @@
         "type-name": "Bytes",
         "length": 32
       }
+    },
+    {
+      "name": "commitmentPath",
+      "arguments": [
+        {
+          "name": "comm",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        }
+      ],
+      "result type": {
+        "type-name": "Struct",
+        "name": "MerkleTreePath",
+        "elements": [
+          {
+            "name": "leaf",
+            "type": {
+              "type-name": "Bytes",
+              "length": 32
+            }
+          },
+          {
+            "name": "path",
+            "type": {
+              "type-name": "Vector",
+              "length": 16,
+              "type": {
+                "type-name": "Struct",
+                "name": "MerkleTreePathEntry",
+                "elements": [
+                  {
+                    "name": "sibling",
+                    "type": {
+                      "type-name": "Struct",
+                      "name": "MerkleTreeDigest",
+                      "elements": [
+                        {
+                          "name": "field",
+                          "type": {
+                            "type-name": "Field"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "name": "goes_left",
+                    "type": {
+                      "type-name": "Boolean"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      }
     }
   ],
   "contracts": [
@@ -139,7 +174,8 @@
       "name": "commitments",
       "index": 0,
       "exported": true,
-      "storage": "Set",
+      "storage": "MerkleTree",
+      "depth": 16,
       "type": {
         "type-name": "Bytes",
         "length": 32
