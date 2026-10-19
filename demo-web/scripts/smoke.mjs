@@ -108,6 +108,13 @@ test('legacy and malformed saved state are rejected rather than re-recorded', ()
 test('old Set ledger format is rejected', () => {
   assert.throws(() => validateSession({ ...recorded, format: 'quest-attestation-demo-session-v2' }), /Unsupported saved ledger format/);
 });
+test('pre-issuer Merkle ledger format is rejected', () => {
+  assert.throws(() => validateSession({ ...recorded, format: 'quest-attestation-merkle-session-v3' }), /Unsupported saved ledger format/);
+});
+test('simulator record has one explicit sample issuer and authorization', () => {
+  assert.equal(recorded.ledger.issuerKeys.length, 1);
+  assert.equal(recorded.ledger.authorizationCount, '1');
+});
 test('unrecorded sessions cannot be checked', () => {
   assert.equal(validateSession(pending).recorded, false);
   assert.throws(() => simulatorFromSession(pending), /No seller record/);

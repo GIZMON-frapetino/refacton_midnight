@@ -1,7 +1,7 @@
 import { describe, test, expect, beforeEach } from '@jest/globals';
 import { randomBytes } from 'node:crypto';
-import { Contract, ledger } from '../compiled/contract/index.js';
-import { commitmentFor, nullifierFor, recordWitnesses } from '../contract/witnesses.js';
+import { Contract, ledger, pureCircuits } from '../compiled/contract/index.js';
+import { authorizationFor, commitmentFor, nullifierFor, recordWitnesses } from '../contract/witnesses.js';
 import { createConstructorContext, createCircuitContext, dummyContractAddress, DUMMY_ADDRESS, valueToBigInt } from '@midnight-ntwrk/compact-runtime';
 
 const bytes32 = () => new Uint8Array(randomBytes(32));
@@ -17,17 +17,26 @@ function publicBytes(value, out = []) {
 
 class Simulator {
   constructor(data) {
-    this.contract = new Contract(recordWitnesses(data));
-    const initial = this.contract.initialState(createConstructorContext({}));
+    this.authority = { adminSecret: bytes32(), issuerSecret: bytes32() };
+    this.scope = bytes32();
+    this.data = data;
+    this.contract = new Contract(recordWitnesses(data, this.authority));
+    const initial = this.contract.initialState(createConstructorContext({}), pureCircuits.deriveAdminKey(this.authority.adminSecret), this.scope);
     this.context = createCircuitContext(dummyContractAddress(), DUMMY_ADDRESS, initial.currentContractState, {});
   }
   call(name, ...args) {
+    // Test fixture setup, not a bypass of the contract's issuer condition.
+    if (name === 'recordQuest' && !this.state().nullifiers.member(nullifierFor(this.data))) {
+      const key = pureCircuits.deriveIssuerKey(this.authority.issuerSecret);
+      if (!this.state().issuerKeys.member(key)) this.call('registerIssuer', key);
+      if (!this.state().recordAuthorizations.member(authorizationFor(this.data, this.scope))) this.call('authorizeRecord');
+    }
     const result = this.contract.circuits[name](this.context, ...args);
     this.context = result.context;
     return result;
   }
   state() { return ledger(this.context.currentQueryContext.state); }
-  use(data, extra = {}) { this.contract.witnesses = { ...recordWitnesses(data), ...extra }; }
+  use(data, extra = {}) { this.data = data; this.contract.witnesses = { ...recordWitnesses(data, this.authority), ...extra }; }
 }
 
 describe('QuestAttestation: current-root private membership', () => {
