@@ -1,0 +1,63 @@
+name: Test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      - name: Run tests
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee test-output.txt
+          echo "---"
+          grep -E 'Tests:' test-output.txt
+          TESTS_PASSED=$(grep -oE 'Tests:[[:space:]]+[0-9]+ passed' test-output.txt | grep -oE '[0-9]+' | head -1)
+          echo "Test count: ${TESTS_PASSED:-unknown} passing"
+
+  compile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Compact compiler 0.31.1
+        run: |
+          curl -fsSL -o compactc.zip \
+            "https://github.com/LFDT-Minokawa/compact/releases/download/compactc-v0.31.1/compactc_v0.31.1_x86_64-unknown-linux-musl.zip"
+          unzip -q compactc.zip
+          chmod +x compactc compactc.bin zkir zkir-v3 format-compact fixup-compact
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      - name: Compile contract
+        run: npm run compile

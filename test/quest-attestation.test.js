@@ -215,7 +215,7 @@ describe('QuestAttestation Contract - Multiple Users & Quests', () => {
     });
   });
 
-  describe('checkAttestation circuit (unlinkable disclosure)', () => {
+  describe('checkAttestation circuit (challenge-bound response)', () => {
     test('should return challenge-bound response for existing attestation', () => {
       // Record attestation
       simulator.callCircuit('recordQuest');
@@ -262,7 +262,7 @@ describe('QuestAttestation Contract - Multiple Users & Quests', () => {
       }).toThrow(/Attestation not found/);
     });
 
-    test('should return different responses for different challenges (unlinkability)', () => {
+    test('should return different responses for different challenges', () => {
       // Record attestation
       simulator.callCircuit('recordQuest');
 
