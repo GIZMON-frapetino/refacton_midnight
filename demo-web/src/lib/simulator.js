@@ -1,5 +1,6 @@
 import { Contract, ledger } from '../../../compiled/contract/index.js';
 import { bytesToHex, hexToBytes } from './bytes.js';
+import { recordWitnesses } from '../../../contract/witnesses.js';
 import {
   ContractState,
   createConstructorContext,
@@ -51,30 +52,19 @@ function stateBytes(hex) {
 }
 
 export function createSellerWitnesses(material) {
-  const { questId, version, userSecret, localSecretKey, salt } = material;
-  return {
-    questId: () => [{}, questId],
-    versionNum: () => [{}, version],
-    userSecret: () => [{}, userSecret],
-    localSecretKey: () => [{}, localSecretKey],
-    saltValue: () => [{}, salt],
-  };
+  return recordWitnesses(material);
 }
 
 export function createCheckWitnesses(material) {
-  const { version, userSecret, salt } = material;
-  return {
-    versionNum: () => [{}, version],
-    userSecret: () => [{}, userSecret],
-    saltValue: () => [{}, salt],
-  };
+  return recordWitnesses(material);
 }
 
 export function ledgerSnapshot(sim) {
   const state = sim.getLedgerState();
   return {
     counter: state.counter.toString(),
-    commitments: [...state.commitments].map(bytesToHex),
+    treeRoot: state.commitments.root().field.toString(16).padStart(64, '0'),
+    commitmentCount: state.commitments.firstFree().toString(),
     nullifiers: [...state.nullifiers].map(bytesToHex),
   };
 }
@@ -82,7 +72,7 @@ export function ledgerSnapshot(sim) {
 export function materialFromExport(obj) {
   if (!obj || typeof obj !== 'object') throw new Error('Invalid session file');
   const versionRaw = String(obj.versionNum ?? obj.version ?? '');
-  if (!/^\d+$/.test(versionRaw) || BigInt(versionRaw) > 18446744073709551615n) {
+  if (!/^\d+$/.test(versionRaw) || BigInt(versionRaw) > 65535n) {
     throw new Error('Invalid session version');
   }
   return {
@@ -96,7 +86,7 @@ export function materialFromExport(obj) {
 
 export function exportMaterial(material) {
   return {
-    format: 'quest-attestation-demo-session-v2',
+    format: 'quest-attestation-merkle-session-v3',
     questIdHex: bytesToHex(material.questId),
     versionNum: String(material.version),
     userSecretHex: bytesToHex(material.userSecret),

@@ -15,6 +15,9 @@ export function simulatorFromSession(session) {
   if (!session.publicStateHex) {
     throw new Error('Session has no saved public ledger. Complete the seller flow again and export a new file.');
   }
+  if (session.format !== 'quest-attestation-merkle-session-v3') {
+    throw new Error('Unsupported saved ledger format. Complete the seller flow again.');
+  }
   const material = materialFromExport(session);
   const sim = new ContractSimulator(createSellerWitnesses(material), session.publicStateHex);
   return { sim, material };
@@ -28,7 +31,7 @@ export function validateSession(session) {
   }
   const { sim } = simulatorFromSession(session);
   const snapshot = ledgerSnapshot(sim);
-  if (BigInt(snapshot.counter) < 1n || !snapshot.commitments.length || !snapshot.nullifiers.length) {
+  if (BigInt(snapshot.counter) < 1n || BigInt(snapshot.commitmentCount) < 1n || !snapshot.nullifiers.length) {
     throw new Error('Session public ledger has no seller record');
   }
   return {
@@ -61,11 +64,12 @@ export function checkSession(session, questIdHex, challengeHex, differentSecret 
   const questId = hexToBytes(questIdHex.trim());
   const challenge = hexToBytes(challengeHex.trim());
   const { sim, material } = simulatorFromSession(session);
+  material.questId = questId;
   if (differentSecret) {
     material.userSecret = new Uint8Array(material.userSecret);
     material.userSecret[0] ^= 1;
   }
   sim.contract.witnesses = createCheckWitnesses(material);
-  const result = sim.callCircuit('checkAttestation', challenge, questId);
+  const result = sim.callCircuit('checkAttestation', challenge);
   return { responseHex: bytesToHex(result.result), ledger: ledgerSnapshot(sim) };
 }

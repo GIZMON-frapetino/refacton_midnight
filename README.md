@@ -1,416 +1,60 @@
-# Quest Attestation - Midnight Network
+# QuestAttestation — Midnight Wave 3
 
-A privacy-focused quest completion attestation system built on Midnight Network for Buildathon Wave 2. Records quest completions on-chain without revealing personal data.
+A Compact record contract with private Merkle membership checks. This branch implements the first Wave 3 change; execution and browser checks are tested locally. Preprod deployment and issuer authorization are planned separately, not delivered by this branch. A record states that its private material was registered; it does not establish that real-world work happened.
 
-## What is Quest Attestation?
+## Contract
 
-Quest Attestation is a Compact smart contract that allows users to record quest completions on the Midnight blockchain while maintaining privacy. The public ledger stores only cryptographic commitments (hashes), while personal data remains private on the user's device. Users can selectively disclose their quest completions through zero-knowledge circuits without revealing sensitive information.
+`commitments` is a `MerkleTree<16, Bytes<32>>` with capacity 65,536 leaves. `nullifiers` remains a `Set<Bytes<32>>`, and `counter` counts successful registrations. `recordQuest()` computes the existing domain-separated commitment from quest ID, user secret, salt and 16-bit version; it derives the nullifier from local secret key and quest ID, rejects an already-used nullifier, inserts a leaf and increments the counter. A different local key can register again: there is no person-identity check.
 
-### Key Features
+`checkAttestation(challenge)` now takes only a public 32-byte challenge. Quest ID, version, user secret, salt and the membership path are private witnesses. The circuit asserts that the path leaf equals the recomputed commitment, then checks its computed root against the current tree root. It returns the existing domain-separated hash of user secret, challenge and quest ID. The commitment and nullifier do not enter its public membership query. A wrong secret, borrowed leaf or invalid path cannot pass that check.
 
-- **Privacy-preserving attestations**: Quest details and user secrets never appear on the public ledger
-- **Commitment-based storage**: Only cryptographic hashes are stored on-chain
-- **Selective disclosure**: Users can check attestations without revealing private data
-- **Double-spend protection**: Nullifiers prevent duplicate attestation records
-- **On-chain counter**: Track total number of attestations recorded
+The previous public `hasCommitment` circuit was removed; it would reintroduce an individual record query. `hasNullifier(n)` remains a public diagnostic and exposes the queried nullifier. `getCounterValue()` returns the public count. Contract bindings and all four circuit key pairs are regenerated with the pinned official compiler.
 
-## Architecture
+## Known limitations and public disclosures
 
-### Contract Structure
+Registration exposes the nullifier, counter update, tree position/update and leaf hash used by Compact's Merkle storage. The Merkle tree structure, current root and population are public. Its inserted storage hash can be compared to a guessed commitment; high-entropy secrets and salt remain essential. The tree is not a secret database.
 
-The `QuestAttestation` contract uses Set-based storage to support multiple users and quests:
+A check's public data contains its challenge, aggregate root, challenge-bound response, query structure and success condition. It does not disclose the commitment, membership path, selected leaf, quest ID, version, salt, user secret or local key. The shared root identifies a tree snapshot and can appear in checks for different records or the same record. Therefore the requirement for literally no shared disclosed value is not achievable with a shared-root design. The tests instead establish that checks disclose no repeated **record-specific** membership identifier, using the generated public transcript, input and output.
 
-1. **Commitments** (`Set<Bytes<32>>`): Set of cryptographic hashes of quest completions
-2. **Nullifiers** (`Set<Bytes<32>>`): Set of nullifiers to prevent duplicate attestation records  
-3. **Counter** (`Counter`): Tracks total number of attestations
+Fresh challenges give different responses; reusing a challenge for the same record repeats the response. Requesters must supply fresh unpredictable challenges and bind them to their application session. Challenge reuse/replay is not prevented by a stored challenge registry. A one-record tree gives an anonymity set of one, and a small population or root/timing patterns can narrow the possible record. Wallet identity, fees, transaction metadata and off-chain disclosures can still correlate activity. This change does not promise general anonymity.
 
-### Private Data (Witnesses)
+This is a current-root tree, not a history-accepting tree. A later registration invalidates old paths; retrieve a fresh path before executing a check. The supplied witness adapter uses `findPathForLeaf` for convenience, an O(n) scan; clients should retain the insertion index and use `pathForLeaf` at scale. Capacity exhaustion, migration, revocation, issuer policy and application authentication need further design. No independent security audit has been performed.
 
-The following data remains private and is never revealed on the blockchain:
+## Reproduce
 
-- `questId`: Unique identifier for the quest
-- `versionNum`: Quest version number
-- `userSecret`: User's private secret for commitment
-- `localSecretKey`: User's local secret key for nullifier derivation
-- `saltValue`: Random salt for commitment generation
-
-### Circuits
-
-#### `recordQuest` (Zero-Knowledge Circuit)
-
-Records a quest attestation by computing a commitment from private inputs and storing it on-chain along with a derived nullifier. The circuit ensures:
-
-- Commitment is computed as: `persistentHash(questId, version, userSecret, salt)`
-- Nullifier is derived internally as: `persistentHash(domain_separator, localSecretKey, questId)`
-- Derived nullifier has not been used previously (prevents double recording)
-- Counter is incremented
-- Private inputs remain hidden
-- Supports multiple users and multiple quests
-
-#### `checkAttestation` (Selective Disclosure Circuit)
-
-Allows users to check if they have a valid attestation for a quest without revealing their secret or other details. The circuit:
-
-- Recomputes commitment from private inputs
-- Checks if commitment exists on ledger
-- Returns result without exposing private data
-
-#### Query Circuits
-
-- `hasCommitment`: Check if a specific commitment exists
-- `hasNullifier`: Check if a nullifier has been used
-- `getCounterValue`: Get total attestation count
-
-## How Midnight is Used
-
-This project leverages Midnight Network's unique capabilities:
-
-### Zero-Knowledge Circuits
-
-The contract uses Midnight's zero-knowledge circuit system to enable private transactions. Circuits allow computation to occur without revealing private inputs (witnesses).
-
-### Compact Language
-
-Written in Compact, Midnight's domain-specific language for zero-knowledge smart contracts. Compact provides:
-
-- Native support for zero-knowledge circuits
-- Type-safe ledger state management
-- Private witness (input) handling
-- Cryptographic primitives (hashing, commitments)
-
-### Ledger Integration
-
-The contract interacts with Midnight's ledger (Ledger 8) through:
-
-- **Set storage**: Efficient collection storage for commitments and nullifiers
-- **Counter storage**: Tracks total attestation count
-- **State updates**: Atomic updates to ledger state within circuits
-- **Query operations**: Read-only access to ledger data
-
-### Privacy Model
-
-Midnight's privacy model separates:
-
-- **Public state**: Stored on the ledger (commitments, nullifiers, counter)
-- **Private state**: Held by users as witnesses (quest details, secrets)
-- **Zero-knowledge circuits**: Enable selective disclosure without revealing private data
-- **Challenge-bound disclosure**: Each check returns a response bound to the requester's challenge. In this Wave 2 demo the commitment itself is disclosed during the check, so checks of the same record can be linked (see Known privacy limitations).
-
-Note: Circuit generation and execution runs entirely in the user's own local environment, not on external servers.
-
-## Setup
-
-### Prerequisites
-
-- Node.js 18 or later
-- npm or yarn
-- Compact toolchain 0.31.1 (compatible with Ledger 8)
-
-### Installing Compact Toolchain 0.31.1
-
-Download and install the Compact compiler from the official GitHub releases:
+Use Node.js 20 or 22 and Compact compiler 0.31.1. The compiler reports Ledger 8.0.2 and runtime 0.16.0. Install the entire compiler bundle in the repository root (the wrapper needs its neighboring executables):
 
 ```bash
-# Download for Linux x86_64
-curl -L -o compactc.zip https://github.com/LFDT-Minokawa/compact/releases/download/compactc-v0.31.1/compactc_v0.31.1_x86_64-unknown-linux-musl.zip
-
-# Extract
+curl -fL -o compactc.zip https://github.com/LFDT-Minokawa/compact/releases/download/compactc-v0.31.1/compactc_v0.31.1_x86_64-unknown-linux-musl.zip
 unzip compactc.zip
-
-# Check installation
-./compactc --version
-# Output: 0.31.1
-
-./compactc --ledger-version
-# Output: ledger-8.0.2
-```
-
-For other platforms (macOS, Linux aarch64), download the appropriate release from:
-https://github.com/LFDT-Minokawa/compact/releases/tag/compactc-v0.31.1
-
-### Project Setup
-
-1. Clone the repository:
-
-```bash
-git clone <repository-url>
-cd quest-attestation-midnight
-```
-
-2. Install dependencies:
-
-```bash
+chmod +x compactc compactc.bin zkir zkir-v3
 npm install
-```
-
-This installs the following Midnight package:
-
-- `@midnight-ntwrk/compact-runtime@0.16.0`: Compact runtime library
-
-**Note**: The runtime package version (0.16.0) differs from the compiler version (0.31.1). Always use the version reported by `./compactc --runtime-version`.
-
-### Compile the Contract
-
-```bash
 npm run compile
-```
-
-This compiles `contract/quest-attestation.compact` using the Compact compiler version 0.31.1.
-
-The compiler generates:
-
-- `compiled/contract/` - TypeScript/JavaScript bindings (`index.js`, `index.d.ts`)
-- `compiled/zkir/` - Zero-knowledge circuit descriptions (`*.zkir`, `*.bzkir`)
-- `compiled/keys/` - Cryptographic keys for circuit execution
-- `compiled/compiler/` - Contract metadata (`contract-info.json`)
-
-The contract compiles 5 circuits with ZK circuit generation:
-
-1. `recordQuest` - Records a quest attestation
-2. `checkAttestation` - Selective disclosure check (returns challenge-bound response)
-3. `hasCommitment` - Query if commitment exists
-4. `hasNullifier` - Query if nullifier is used
-5. `getCounterValue` - Get total attestation count
-
-All circuit ZKIRs are generated in `compiled/zkir/`, including `checkAttestation.zkir`.
-
-### Run Tests
-
-```bash
 npm test
+cd demo-web
+npm ci
+npm run build
+cd ..
+npm run test:demo-web
 ```
 
-Tests use the Midnight Compact runtime with the compiled contract and cover:
+Jest has 20 tests: successful/multiple registrations, duplicate rejection, correct membership, wrong material, borrowed/corrupt/stale paths, fresh path recovery, actual public-transcript disclosures, challenge reuse, read-only state, real nullifier queries and counter values. The browser helpers have 18 regression checks. These are compiled-contract simulator checks, not network transaction tests. GitHub Actions also compiles the Compact source; no workflow files were changed for this branch.
 
-- **recordQuest circuit** (5 tests)
-  - Successfully record quest attestations
-  - Allow multiple users and multiple quests
-  - Reject duplicate nullifier (double recording prevention)
-  - Counter increments correctly
+## Browser demo
 
-- **checkAttestation circuit** (3 tests)
-  - Return challenge-bound response for existing attestation with correct inputs
-  - Fail check with wrong secret
-  - Return different responses for different challenges
-
-- **hasCommitment circuit** (2 tests)
-  - Return true for recorded commitments
-  - Return false for non-existent commitments
-
-- **hasNullifier circuit** (2 tests)
-  - Return true for used nullifiers
-  - Return false for unused nullifiers
-
-- **getCounterValue circuit** (2 tests)
-  - Return 0 for initial state
-  - Return correct count after multiple attestations
-
-- **Privacy model** (2 tests)
-  - Demonstrate nullifier derivation from local secret
-  - Multiple users record without revealing secrets
-
-All 16 tests pass using local simulation with the compiled contract.
-
-### Development
-
-Run tests in watch mode during development:
+`demo-web/` retains the business chat, sample plan and engineer record/check flow. Chat, task descriptions and work results are clearly sample content; no AI, payment or hiring occurs. The simulator executes `recordQuest` and `checkAttestation` and shows tree root, leaf count, nullifiers and count. Old Set-based saved sessions are rejected rather than relabeled as Merkle sessions. Session exports contain local secrets and must not be published.
 
 ```bash
-npm run test:watch
+cd demo-web
+npm ci
+npm run build
+npm run preview
 ```
 
-## How judges can try it
+The existing GitHub Pages deployment branch is `cursor/midnight-demo-web-409a`. This feature branch does not replace that public deployment and is not merged into main.
 
-Quick path to reproduce the Wave 2 demo locally.
+## References
 
-### Prerequisites
+[Official private-data guidance](https://docs.midnight.network/concepts/how-midnight-works/keeping-data-private) describes the path-leaf binding and root check. [Ledger data types](https://docs.midnight.network/compact/reference/ledger-adt) describes tree path methods; the current online reference targets a newer compiler, so this branch is compiled and tested with 0.31.1. [Pinned compiler release](https://github.com/LFDT-Minokawa/compact/releases/tag/compactc-v0.31.1).
 
-- Node.js 18 or later
-- npm
-- [Compact toolchain 0.31.1](https://github.com/LFDT-Minokawa/compact/releases/tag/compactc-v0.31.1) (`compactc` on your `PATH`, or place the binary in the repo root next to `package.json` as `./compactc`)
-
-### Install
-
-```bash
-git clone <repository-url>
-cd quest-attestation-midnight
-npm install
-```
-
-Install Compact 0.31.1 if needed (Linux x86_64 example):
-
-```bash
-curl -L -o compactc.zip https://github.com/LFDT-Minokawa/compact/releases/download/compactc-v0.31.1/compactc_v0.31.1_x86_64-unknown-linux-musl.zip
-unzip compactc.zip
-chmod +x compactc
-./compactc --version   # expect 0.31.1
-```
-
-### Compile
-
-```bash
-npm run compile
-```
-
-Uses `./compactc contract/quest-attestation.compact ./compiled` (Compact 0.31.1).
-
-### Test
-
-```bash
-npm test
-```
-
-### Test output (run 2026-10-16, Linux x86_64, Compact 0.31.1)
-
-```
-PASS test/quest-attestation.test.js
-  QuestAttestation Contract - Multiple Users & Quests
-    recordQuest circuit
-      ✓ should successfully record a quest attestation
-      ✓ should allow multiple users to record the same quest
-      ✓ should allow same user to record multiple different quests
-      ✓ should reject duplicate attestation from same user for same quest
-      ✓ should increment counter correctly for multiple attestations
-    checkAttestation circuit (challenge-bound response)
-      ✓ should return challenge-bound response for existing attestation
-      ✓ should fail check with wrong secret
-      ✓ should return different responses for different challenges
-    hasCommitment circuit
-      ✓ should return true for recorded commitment
-      ✓ should return false for non-existent commitment
-    hasNullifier circuit
-      ✓ should return true for used nullifier after recording
-      ✓ should return false for unused nullifier
-    getCounterValue circuit
-      ✓ should return 0 for initial state
-      ✓ should return correct count after multiple attestations
-    privacy model
-      ✓ should demonstrate nullifier derived from secret, not caller-supplied
-      ✓ should allow multiple users to record without revealing their secrets
-
-Test Suites: 1 passed, 1 total
-Tests:       16 passed, 16 total
-Snapshots:   0 total
-Time:        0.323 s
-Ran all test suites.
-```
-
-## Progress in This Wave
-
-### Completed
-
-- Compact contract implementation (`QuestAttestation`)
-- Zero-knowledge circuits for recording and selective disclosure
-- Commitment-based privacy model
-- Nullifier-based double-spend protection
-- Successful compilation with Compact 0.31.1
-- Generated circuit execution keys
-- Documentation and setup instructions
-- Toolchain installation (0.31.1 for Ledger 8 compatibility)
-
-### Midnight demo web (`demo-web/`)
-
-Browser demo for the Buildathon (seller `recordQuest` + buyer `checkAttestation` against the local simulator). See [demo-web/README.md](demo-web/README.md).
-
-### Next Steps (Not Yet Implemented)
-
-- **Preprod Deployment**: Deploy contract to Midnight Preprod testnet
-- **CLI Demo**: Command-line interface for interacting with deployed contract
-  - Record quest attestations
-  - Check attestations with selective disclosure
-  - Query public ledger state (commitments, nullifiers, counter)
-- **Network Integration**: Configure Midnight network connectivity
-- **Wallet Integration**: Connect user wallets for transaction signing
-
-## Technical Specifications
-
-- **Ledger Version**: 8.0.2
-- **Compact Compiler**: 0.31.1
-- **Runtime Package**: @midnight-ntwrk/compact-runtime 0.16.0
-- **Contract Language**: Compact
-- **License**: Apache-2.0
-
-## Contract API
-
-### Recording a Quest
-
-```javascript
-// Private inputs (witnesses)
-const questId = new Uint8Array(32);        // 32 bytes
-const version = 1;                         // 16-bit unsigned integer
-const userSecret = new Uint8Array(32);     // 32 bytes
-const localSecretKey = new Uint8Array(32); // 32 bytes for nullifier derivation
-const salt = new Uint8Array(32);           // 32 bytes
-
-// Calls recordQuest circuit (nullifier derived internally)
-await contract.recordQuest(questId, version, userSecret, localSecretKey, salt);
-```
-
-### Checking an Attestation (Selective Disclosure)
-
-```javascript
-// Public inputs
-const challenge = new Uint8Array(32);  // Per-requester challenge
-const questId = new Uint8Array(32);    // Quest identifier
-
-// Private inputs (witnesses)
-const version = 1;
-const userSecret = new Uint8Array(32);
-const salt = new Uint8Array(32);
-
-// Calls checkAttestation circuit - returns challenge-bound response
-const response = await contract.checkAttestation(challenge, questId, version, userSecret, salt);
-// Response is bound to challenge and questId; the commitment is disclosed on-chain during the check in this demo
-```
-
-### Querying Public State
-
-```javascript
-// Check if commitment exists
-const commitment = "0x...";
-const exists = await contract.hasCommitment(commitment);
-
-// Check if nullifier used
-const nullifier = "0x...";
-const used = await contract.hasNullifier(nullifier);
-
-// Get total attestation count
-const count = await contract.getCounterValue();
-```
-
-## Security Considerations
-
-- **Private data never leaves the device**: Quest details and user secrets are witnesses only
-- **Commitments are one-way**: Cannot reverse a commitment to reveal original data
-- **Nullifiers prevent replay**: Same attestation cannot be recorded twice
-- **Challenge-bound responses**: Each check answers a specific challenge. The commitment is disclosed during the check in this demo, so repeated checks of the same record are linkable (see Known privacy limitations).
-- **Separate values per quest**: Different quests by the same user produce different commitments and nullifiers. Wallet, fee, and timing metadata can still link them.
-
-## Known privacy limitations (Wave 2 demo)
-
-This limitation comes from how **this implementation** reuses public values during checks, not from Midnight in general.
-
-`checkAttestation` uses `Set.member(disclose(comm))`: the same commitment value is visible on-chain at each check, so checks of the same attestation record can be linked by anyone observing the ledger. Fee payment and wallet metadata can also link wallets across transactions.
-
-- **Names, company names, secret values, and transaction contents are not put on-chain** — these remain private as witnesses
-- **Observers can correlate checks** that disclose the same commitment and infer timing, frequency, and requester activity
-- **This demo assumes a limited set of requesters** and does not guarantee production-grade anonymity
-
-**Wave 3 plan**: Merkle-tree-based membership checks with fresh values per check to break linkage, plus an issuer for trusted attestations.
-
-**References**:
-- [How Midnight keeps data private](https://docs.midnight.network/concepts/how-midnight-works/keeping-data-private)
-- [Security best practices](https://docs.midnight.network/guides/security-best-practices)
-
-## Additional Limitations
-
-- **No issuer backing yet**: The current implementation does not include issuer signatures or attestation from trusted parties. This feature is planned for Wave 3.
-- **Local execution only**: This Wave 2 implementation runs in local simulation. Network deployment requires additional setup.
-
-## Contributing
-
-This project is part of Midnight Network Buildathon Wave 2. Contributions should maintain privacy guarantees and follow Compact best practices.
-
-## License
-
-Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for details.
+Apache-2.0. See [LICENSE](LICENSE).

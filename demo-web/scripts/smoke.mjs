@@ -24,9 +24,11 @@ const match = () => checkSession(recorded, recorded.questIdHex, challenge);
 
 console.log('demo-web regression checks');
 test('initial ledger is empty', () => {
-  assert.deepEqual(ledgerSnapshot(new ContractSimulator(createSellerWitnesses(material))), {
-    counter: '0', commitments: [], nullifiers: [],
-  });
+  const snapshot = ledgerSnapshot(new ContractSimulator(createSellerWitnesses(material)));
+  assert.equal(snapshot.counter, '0');
+  assert.equal(snapshot.commitmentCount, '0');
+  assert.equal(snapshot.treeRoot.length, 64);
+  assert.deepEqual(snapshot.nullifiers, []);
 });
 test('seller preserves quest id and material through completion', () => {
   for (const key of ['questIdHex', 'userSecretHex', 'localSecretKeyHex', 'saltHex', 'versionNum']) {
@@ -36,9 +38,9 @@ test('seller preserves quest id and material through completion', () => {
 });
 test('recordQuest adds counter, commitment and nullifier', () => {
   assert.equal(recorded.ledger.counter, '1');
-  assert.equal(recorded.ledger.commitments.length, 1);
+  assert.equal(recorded.ledger.commitmentCount, '1');
   assert.equal(recorded.ledger.nullifiers.length, 1);
-  assert.equal(recorded.ledger.commitments[0].length, 64);
+  assert.equal(recorded.ledger.treeRoot.length, 64);
   assert.equal(recorded.ledger.nullifiers[0].length, 64);
 });
 test('JSON round trip restores the saved ledger', () => {
@@ -102,6 +104,9 @@ test('legacy and malformed saved state are rejected rather than re-recorded', ()
   assert.throws(() => validateSession(legacy), /no saved public ledger/);
   assert.throws(() => validateSession({ ...recorded, publicStateHex: 'gg' }), /Invalid saved public ledger/);
   assert.throws(() => validateSession({ ...recorded, publicStateHex: '00' }));
+});
+test('old Set ledger format is rejected', () => {
+  assert.throws(() => validateSession({ ...recorded, format: 'quest-attestation-demo-session-v2' }), /Unsupported saved ledger format/);
 });
 test('unrecorded sessions cannot be checked', () => {
   assert.equal(validateSession(pending).recorded, false);
