@@ -2,6 +2,7 @@ import { forwardRef, useImperativeHandle, useState } from 'react';
 import { PLAN_STEPS } from './invoicePlan.js';
 import BusinessSteps from './BusinessSteps.jsx';
 import BuyerFlow from './BuyerFlow.jsx';
+import { currentExecutionMode } from '../lib/execution.js';
 import './ChatFlow.css';
 
 const SAMPLE_MESSAGE = 'We type every invoice into our accounting sheet by hand. It takes hours each month and typos slip in.';
@@ -43,7 +44,7 @@ export default forwardRef(function ChatFlow({ session, onSessionChange, appendLo
   }
 
   if (stage === 'final') {
-    return <section className="business-final"><span className="mock-tag">Sample next step</span><h1 id="final-heading" tabIndex={-1}>Next: hire Engineer #A12 for step 5 only.</h1><p>Runs in a local browser simulator, not on a network yet.</p><small>No payment or hire is made in this demo.</small></section>;
+    return <section className="business-final"><span className="mock-tag">Sample next step</span><h1 id="final-heading" tabIndex={-1}>Next: hire Engineer #A12 for step 5 only.</h1><p>{currentExecutionMode() === 'preprod' ? 'Preprod integration draft. Live wallet-backed use still needs validation.' : 'Runs in a local browser simulator, not on a network yet.'}</p><small>No payment or hire is made in this demo.</small></section>;
   }
 
   if (stage === 'outline') {
