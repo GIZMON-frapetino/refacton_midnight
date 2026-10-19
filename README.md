@@ -1,6 +1,6 @@
 # QuestAttestation — Midnight Wave 3
 
-A Compact record contract with private Merkle membership checks and registered-issuer authorization. This branch starts from main after PR #9 was squash-merged and re-applies only the issuer changes from PR #10. Execution and browser helpers are tested locally; Preprod deployment and wallet-backed transactions are planned separately. A registered issuer can approve a record, but the software does not establish that real-world work happened or identify a human reviewer.
+A Compact record contract with private Merkle membership checks and registered-issuer authorization. This replacement **Draft** is based on the main-based issuer branch in PR #12 and re-applies only PR #11's integration changes. **Preprod contract address: not available; deployment unfinished.** The owner will create and control their own Lace wallet. No live wallet approval or network transaction was performed. A registered issuer can approve a record, but the software does not establish that real-world work happened or identify a human reviewer.
 
 ## Contract
 
@@ -46,7 +46,7 @@ cd ..
 npm run test:demo-web
 ```
 
-All six stateful circuits have regenerated keys: record, check, nullifier query, counter query, issuer registration and record authorization. Two pure key-identifier helpers are generated too. Jest has 32 compiled-contract simulator tests: 20 membership/record tests inherited from PR A and 12 explicit issuer-gate tests, including valid/unknown issuer, public-key impersonation, unauthorized registry access, exact-material binding, scope, duplicates and public transcript checks. The browser helper suite has 20 regressions. These are not network transaction tests. Existing Actions compile and test jobs are unchanged.
+All six stateful circuits have regenerated keys: record, check, nullifier query, counter query, issuer registration and record authorization. Two pure key-identifier helpers are generated too. Jest has 45 tests: 20 membership/record tests inherited from PR A, 12 issuer-gate tests and 13 offline wallet/mode guards. The browser helper suite has 20 regressions; the demo build also runs strict TypeScript checking and 4 official-adapter offline tests. These are not network transaction tests. Existing Actions compile and test workflows are unchanged.
 
 ## Browser demo
 
@@ -59,7 +59,15 @@ npm run build
 npm run preview
 ```
 
-The existing public demo deployment branch remains `cursor/midnight-demo-web-409a`. This replacement issuer branch is based directly on main at `d5f5313`, with only PR #10's issuer changes and updated base documentation. The original PR #9 commits are not reintroduced. No existing branch was rewritten or deleted, and this branch is not merged or published over the current demo. Merge decisions belong to the owner.
+The existing public demo deployment branch remains `cursor/midnight-demo-web-409a`. This Draft starts from `cursor/wave3-issuer-auth-main` (PR #12), which is based directly on main at `d5f5313` after PR #9 was squash-merged. Only the integration changes from PR #11 and updated base documentation were added above the issuer branch. Original branches are retained unchanged; nothing was force-pushed, deleted, merged or published over the current demo. Merge decisions belong to the owner.
+
+## Preprod preparation — Draft
+
+[Operator requirements and reproduction steps](demo-web/PREPROD.md) distinguish implemented SDK wiring from unfinished deployment. Simulator mode remains the default. Preprod (draft) offers Lace v4 connection and official provider/call entry points, but **live transactions are disabled by default**. An operator-controlled build can set the public feature flag `VITE_ENABLE_PREPROD_TRANSACTIONS=true` only after completing storage, issuer approval and live acceptance work. No address is supplied or invented; use only an actual deployed public address. Network errors never substitute simulator results.
+
+The typed deployment helper is not a turnkey CLI/UI: the owner must supply an approved wallet connection and a durable encrypted SDK private-state provider with maintenance-key backup. It rejects the default memory-only store. Production issuer/admin workflow, secure recipient backup/import, account-change tracking, cancellation/recovery and live network acceptance are planned. Network recipient material stays in memory and is not exported by the sample sharing feature. Wallet recovery phrases, seeds and private keys remain with the owner and are never requested by this app.
+
+Generated artifacts remain compiler 0.31.1 / Ledger 8.0.2 / runtime 0.16.0. The pinned official SDK 4.1.1 protocol package requires its own Ledger 8.1.0 and on-chain runtime 3.0.0; the browser uses single resolved copies and protocol re-exports. Local type/build/simulator checks pass; actual Preprod/wallet compatibility has not been established. The full simulator and offline SDK loading/guards passed at 390×844 and 1280×720, with no real wallet or network submission.
 
 ## References
 
