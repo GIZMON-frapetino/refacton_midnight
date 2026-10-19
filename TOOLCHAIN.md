@@ -16,7 +16,7 @@ npm test
 
 Keep all extracted executables beside the compiler wrapper. The repository ignores these executables. `npm run compile` invokes `./compactc contract/quest-attestation.compact ./compiled`. It generates JavaScript bindings, Compact circuit descriptions, metadata and circuit execution key pairs. `--skip-zk` is useful for local binding iteration but is not the final compilation used for delivery.
 
-Four exported circuits remain: `recordQuest`, `checkAttestation`, `hasNullifier` and `getCounterValue`. All four have generated keys; membership checks now require the private-path circuit constraints. The ledger has a depth-16 current-root Merkle tree, a nullifier Set and counter. There is no single-record slot and no public commitment-membership query. See the root README for the exact disclosure and freshness limits.
+Six stateful exported circuits have generated keys: `recordQuest`, `checkAttestation`, `hasNullifier`, `getCounterValue`, `registerIssuer` and `authorizeRecord`. Two pure key-identifier helpers are also generated. The ledger has a depth-16 current-root Merkle tree, a nullifier Set, counter, sealed administrator/scope fields, registered issuer identifiers and exact authorization markers. There is no single-record slot and no public commitment-membership query. See the root README for the exact disclosure and freshness limits.
 
 Generated `*.prover` and `*.verifier` files are public circuit artifacts, not wallet secrets. Never place wallet seeds, issuer secret keys or API tokens in the repository.
 
