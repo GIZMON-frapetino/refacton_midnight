@@ -1,6 +1,6 @@
 # QuestAttestation — Midnight Wave 3
 
-A Compact record contract with private Merkle membership checks and registered-issuer authorization. This branch builds on PR A and implements PR B. Execution and browser helpers are tested locally; Preprod deployment and wallet-backed transactions are planned separately. A registered issuer can approve a record, but the software does not establish that real-world work happened or identify a human reviewer.
+A Compact record contract with private Merkle membership checks and registered-issuer authorization. This branch starts from main after PR #9 was squash-merged and re-applies only the issuer changes from PR #10. Execution and browser helpers are tested locally; Preprod deployment and wallet-backed transactions are planned separately. A registered issuer can approve a record, but the software does not establish that real-world work happened or identify a human reviewer.
 
 ## Contract
 
@@ -59,7 +59,7 @@ npm run build
 npm run preview
 ```
 
-The existing public demo deployment branch remains `cursor/midnight-demo-web-409a`. This dependent feature branch is not merged into main or published over that deployment. PR B is based on PR A for a reviewable issuer-only delta; merge decisions belong to the owner.
+The existing public demo deployment branch remains `cursor/midnight-demo-web-409a`. This replacement issuer branch is based directly on main at `d5f5313`, with only PR #10's issuer changes and updated base documentation. The original PR #9 commits are not reintroduced. No existing branch was rewritten or deleted, and this branch is not merged or published over the current demo. Merge decisions belong to the owner.
 
 ## References
 
