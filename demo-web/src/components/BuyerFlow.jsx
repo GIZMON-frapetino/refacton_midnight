@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { checkSession, validateSession } from '../lib/session.js';
+import { validateSession } from '../lib/session.js';
+import { checkInMode, currentExecutionMode } from '../lib/execution.js';
 import { bytesToHex, randomBytes32 } from '../lib/bytes.js';
 import LedgerPanel from './LedgerPanel.jsx';
 import DemoLog from './DemoLog.jsx';
@@ -19,6 +20,7 @@ export default function BuyerFlow({ session, onSessionChange, appendLog, ledgerV
   async function importSessionFile(file) {
     clearResult();
     try {
+      if (currentExecutionMode() !== 'simulator') throw new Error('Simulator session imports are only available in Simulator mode.');
       const data = validateSession(JSON.parse(await file.text()));
       onSessionChange(data);
       setQuestIdInput(data.questIdHex);
@@ -34,9 +36,9 @@ export default function BuyerFlow({ session, onSessionChange, appendLog, ledgerV
     clearResult();
     setBusy(true);
     try {
-      const checked = checkSession(session, questIdInput, challengeInput, differentSecret);
+      const checked = await checkInMode(session, questIdInput, challengeInput, differentSecret);
       setResult({ status: 'match', responseHex: checked.responseHex });
-      appendLog('Buyer checkAttestation succeeded (match).');
+      appendLog(`Buyer checkAttestation succeeded in ${currentExecutionMode()} mode (match).`);
       appendLog(`Response (challenge-bound): ${checked.responseHex.slice(0, 16)}…`);
       onSessionChange({ ...session, ledger: checked.ledger, lastResponseHex: checked.responseHex });
     } catch (e) {

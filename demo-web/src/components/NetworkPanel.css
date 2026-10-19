@@ -1,0 +1,10 @@
+.network-panel { width: 100%; margin: 0 0 12px; border: 1px solid #e4ddf5; border-radius: 12px; color: #655879; background: #faf8ff; font: 12px/1.5 Inter, system-ui, sans-serif; }
+.network-panel summary { padding: 10px 12px; cursor: pointer; font-weight: 600; }
+.network-panel-body { display: grid; gap: 10px; padding: 0 12px 12px; }
+.network-panel-body p { margin: 0; }
+.network-panel-body input, .network-panel-body select { box-sizing: border-box; width: 100%; min-height: 40px; border: 1px solid #dcd3eb; border-radius: 8px; padding: 8px; background: #fff; font: inherit; }
+.network-panel-body button { min-height: 40px; border: 1px solid #d5c7f2; border-radius: 8px; padding: 8px 12px; background: #fff; color: #603dc5; font: 600 12px/1.4 Inter, system-ui, sans-serif; cursor: pointer; }
+.network-panel-body button:disabled { opacity: .55; cursor: default; }
+.network-mode { display: flex; gap: 8px; }
+.network-mode button[aria-pressed="true"] { color: #fff; background: #603dc5; }
+.network-panel-body .network-message { padding: 10px; background: #eee8fb; border-radius: 8px; overflow-wrap: anywhere; }
