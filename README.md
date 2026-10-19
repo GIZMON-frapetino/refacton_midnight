@@ -271,10 +271,10 @@ PASS test/quest-attestation.test.js
       ✓ should allow same user to record multiple different quests
       ✓ should reject duplicate attestation from same user for same quest
       ✓ should increment counter correctly for multiple attestations
-    checkAttestation circuit (unlinkable disclosure)
+    checkAttestation circuit (challenge-bound response)
       ✓ should return challenge-bound response for existing attestation
       ✓ should fail check with wrong secret
-      ✓ should return different responses for different challenges (unlinkability)
+      ✓ should return different responses for different challenges
     hasCommitment circuit
       ✓ should return true for recorded commitment
       ✓ should return false for non-existent commitment
