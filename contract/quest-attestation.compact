@@ -5,6 +5,10 @@ import CompactStandardLibrary;
 export ledger commitments: MerkleTree<16, Bytes<32>>;
 export ledger nullifiers: Set<Bytes<32>>;
 export ledger counter: Counter;
+export sealed ledger issuerAdmin: Bytes<32>;
+export sealed ledger authorizationScope: Bytes<32>;
+export ledger issuerKeys: Set<Bytes<32>>;
+export ledger recordAuthorizations: Set<Bytes<32>>;
 
 witness questId(): Bytes<32>;
 witness versionNum(): Uint<16>;
@@ -12,6 +16,47 @@ witness userSecret(): Bytes<32>;
 witness localSecretKey(): Bytes<32>;
 witness saltValue(): Bytes<32>;
 witness commitmentPath(comm: Bytes<32>): MerkleTreePath<16, Bytes<32>>;
+witness issuerAdminSecret(): Bytes<32>;
+witness issuerSecret(): Bytes<32>;
+witness authorizationQuestId(): Bytes<32>;
+witness authorizationCommitment(): Bytes<32>;
+witness authorizationNullifier(): Bytes<32>;
+
+constructor(adminKey: Bytes<32>, scope: Bytes<32>) {
+  assert(adminKey != default<Bytes<32>>, "Invalid administrator key");
+  assert(scope != default<Bytes<32>>, "Invalid authorization scope");
+  issuerAdmin = disclose(adminKey);
+  authorizationScope = disclose(scope);
+}
+
+// These public identifiers authenticate possession of independent secret keys.
+// They are domain-separated hashes, not an external signature format.
+export pure circuit deriveAdminKey(secret: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([pad(32, "midnight:quest:issuer-admin:v1") as Bytes<32>, secret]);
+}
+
+export pure circuit deriveIssuerKey(secret: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([pad(32, "midnight:quest:issuer-id:v1") as Bytes<32>, secret]);
+}
+
+circuit authorizationId(qId: Bytes<32>, comm: Bytes<32>, nul: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<5, Bytes<32>>>([pad(32, "midnight:quest:issuer-record:v1") as Bytes<32>, authorizationScope, qId, comm, nul]);
+}
+
+export circuit registerIssuer(key: Bytes<32>): [] {
+  assert(deriveAdminKey(issuerAdminSecret()) == issuerAdmin, "Administrator authorization failed");
+  assert(key != default<Bytes<32>>, "Invalid issuer key");
+  assert(!issuerKeys.member(disclose(key)), "Issuer already registered");
+  issuerKeys.insert(disclose(key));
+}
+
+export circuit authorizeRecord(): [] {
+  const key = deriveIssuerKey(issuerSecret());
+  assert(issuerKeys.member(disclose(key)), "Issuer is not registered");
+  const marker = authorizationId(authorizationQuestId(), authorizationCommitment(), authorizationNullifier());
+  assert(!recordAuthorizations.member(disclose(marker)), "Record already authorized");
+  recordAuthorizations.insert(disclose(marker));
+}
 
 circuit computeCommitment(qId: Bytes<32>, ver: Uint<16>, secret: Bytes<32>, s: Bytes<32>): Bytes<32> {
   const domain = pad(32, "midnight:quest:commitment") as Bytes<32>;
@@ -28,6 +73,8 @@ export circuit recordQuest(): [] {
   const comm = computeCommitment(qId, versionNum(), userSecret(), saltValue());
   const nullifier = deriveNullifier(qId, localSecretKey());
   assert(!nullifiers.member(disclose(nullifier)), "Quest already recorded by this user");
+  const marker = authorizationId(qId, comm, nullifier);
+  assert(recordAuthorizations.member(disclose(marker)), "Record lacks issuer authorization");
   commitments.insert(disclose(comm));
   nullifiers.insert(disclose(nullifier));
   counter.increment(1);

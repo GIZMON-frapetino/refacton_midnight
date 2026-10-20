@@ -1,6 +1,6 @@
-import { Contract, ledger } from '../../../compiled/contract/index.js';
-import { bytesToHex, hexToBytes } from './bytes.js';
-import { recordWitnesses } from '../../../contract/witnesses.js';
+import { Contract, ledger, pureCircuits } from '../../../compiled/contract/index.js';
+import { bytesToHex, hexToBytes, randomBytes32 } from './bytes.js';
+import { authorizationFor, recordWitnesses } from '../../../contract/witnesses.js';
 import {
   ContractState,
   createConstructorContext,
@@ -12,11 +12,12 @@ import {
 export class ContractSimulator {
   constructor(witnesses, publicStateHex = null) {
     this.contract = new Contract(witnesses);
+    this.sampleAuthority = { adminSecret: randomBytes32(), issuerSecret: randomBytes32() };
     this.privateState = {};
     this.contractAddress = dummyContractAddress();
 
     const state = publicStateHex === null
-      ? this.contract.initialState(createConstructorContext(this.privateState)).currentContractState
+      ? this.contract.initialState(createConstructorContext(this.privateState), pureCircuits.deriveAdminKey(this.sampleAuthority.adminSecret), randomBytes32()).currentContractState
       : ContractState.deserialize(stateBytes(publicStateHex));
 
     this.circuitContext = createCircuitContext(
@@ -42,6 +43,14 @@ export class ContractSimulator {
     state.data = this.circuitContext.currentQueryContext.state;
     return bytesToHex(state.serialize());
   }
+
+  authorizeSample(material) {
+    this.contract.witnesses = recordWitnesses(material, this.sampleAuthority);
+    const key = pureCircuits.deriveIssuerKey(this.sampleAuthority.issuerSecret);
+    if (!this.getLedgerState().issuerKeys.member(key)) this.callCircuit('registerIssuer', key);
+    const marker = authorizationFor(material, this.getLedgerState().authorizationScope);
+    if (!this.getLedgerState().recordAuthorizations.member(marker)) this.callCircuit('authorizeRecord');
+  }
 }
 
 function stateBytes(hex) {
@@ -66,6 +75,8 @@ export function ledgerSnapshot(sim) {
     treeRoot: state.commitments.root().field.toString(16).padStart(64, '0'),
     commitmentCount: state.commitments.firstFree().toString(),
     nullifiers: [...state.nullifiers].map(bytesToHex),
+    issuerKeys: [...state.issuerKeys].map(bytesToHex),
+    authorizationCount: state.recordAuthorizations.size().toString(),
   };
 }
 
@@ -86,7 +97,7 @@ export function materialFromExport(obj) {
 
 export function exportMaterial(material) {
   return {
-    format: 'quest-attestation-merkle-session-v3',
+    format: 'quest-attestation-issuer-session-v4',
     questIdHex: bytesToHex(material.questId),
     versionNum: String(material.version),
     userSecretHex: bytesToHex(material.userSecret),

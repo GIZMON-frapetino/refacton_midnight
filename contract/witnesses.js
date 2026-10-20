@@ -20,7 +20,13 @@ export function nullifierFor(material) {
   ]);
 }
 
-export function recordWitnesses(material) {
+export function authorizationFor(material, scope) {
+  return persistentHash(new CompactTypeVector(5, bytes), [
+    domain('midnight:quest:issuer-record:v1'), scope, material.questId, commitmentFor(material), nullifierFor(material),
+  ]);
+}
+
+export function recordWitnesses(material, authority = {}) {
   return {
     questId: ({ privateState }) => [privateState, material.questId],
     versionNum: ({ privateState }) => [privateState, material.version],
@@ -32,5 +38,10 @@ export function recordWitnesses(material) {
       if (!path) throw new Error('Attestation not found');
       return [privateState, path];
     },
+    issuerAdminSecret: ({ privateState }) => [privateState, authority.adminSecret],
+    issuerSecret: ({ privateState }) => [privateState, authority.issuerSecret],
+    authorizationQuestId: ({ privateState }) => [privateState, material.questId],
+    authorizationCommitment: ({ privateState }) => [privateState, commitmentFor(material)],
+    authorizationNullifier: ({ privateState }) => [privateState, nullifierFor(material)],
   };
 }

@@ -15,7 +15,7 @@ export function simulatorFromSession(session) {
   if (!session.publicStateHex) {
     throw new Error('Session has no saved public ledger. Complete the seller flow again and export a new file.');
   }
-  if (session.format !== 'quest-attestation-merkle-session-v3') {
+  if (session.format !== 'quest-attestation-issuer-session-v4') {
     throw new Error('Unsupported saved ledger format. Complete the seller flow again.');
   }
   const material = materialFromExport(session);
@@ -49,6 +49,7 @@ export function recordSession(session) {
   const sim = session.recorded
     ? simulatorFromSession(session).sim
     : new ContractSimulator(createSellerWitnesses(material));
+  if (!session.recorded) sim.authorizeSample(material);
   const result = sim.callCircuit('recordQuest');
   return {
     ...exportMaterial(material),
