@@ -10,5 +10,5 @@ export default defineConfig({
     },
     dedupe: ['@midnight-ntwrk/ledger-v8', '@midnight-ntwrk/compact-runtime', '@midnight-ntwrk/onchain-runtime-v3'],
   },
-  test: { environment: 'node', include: ['scripts/entry-points.test.ts'], pool: 'forks', maxWorkers: 1 },
+  test: { environment: 'node', include: ['scripts/entry-points.test.ts', 'scripts/encrypted-private-state.test.ts', 'scripts/transaction-recovery.test.ts', 'scripts/typed-check.test.ts'], pool: 'forks', maxWorkers: 1, testTimeout: 30_000 },
 });

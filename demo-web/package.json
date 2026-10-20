@@ -33,6 +33,7 @@
   "devDependencies": {
     "@types/node": "22.18.12",
     "@vitejs/plugin-react": "^4.3.4",
+    "fake-indexeddb": "6.2.4",
     "tsx": "4.20.6",
     "typescript": "5.9.3",
     "vite": "^6.0.7",
