@@ -1,77 +1,74 @@
 # Preprod integration — DRAFT, deployment unfinished
 
-**Deployed contract address: not available. No deployment has been performed.** This branch prepares official SDK connection/call/deployment entry points while retaining the local simulator. No live wallet approval, funding, transaction, issuer approval or network result has been tested. Do not treat green CI as evidence of a deployed service.
+**Deployed contract address: not available. No deployment has been performed.** No real wallet connection, approval, funding, deployment or network transaction was performed. Offline CI is not evidence of a deployed service.
 
 ## Wallet ownership
 
-Create and manage your own Midnight-compatible Lace wallet using links from the [official integration documentation](https://docs.midnight.network/sdks/community/wallets/community-wallets-integration). Keep its recovery phrase, seed and private keys on your own device. Do not provide them to an agent, paste them in chat, or put them in application source or browser build variables. Approve connections and transactions in the wallet UI yourself. Use Preprod test balances only, not real funds. The user explicitly chose to prepare this PR as a draft until their own wallet and local service are available.
+Create and manage your own Midnight-compatible Lace wallet using the [official integration documentation](https://docs.midnight.network/sdks/community/wallets/community-wallets-integration). Keep recovery phrases, seeds, private keys and API tokens on your own device, outside the repository and browser build variables. Approve connections and transactions in Lace yourself. Use Preprod test balances only. Actual wallet approval/rejection behavior still needs a live acceptance run.
 
-## Implemented and checked offline
+## Implemented safeguards
 
-- Default Simulator mode still executes the issuer-aware contract locally. The sample issuer is generated only for fresh simulator sessions.
-- A collapsible mode panel selects Simulator or Preprod (draft). Switching remounts the journey; local sessions cannot be relabeled as network records. A missing wallet/address/runner fails explicitly, with no silent simulator fallback. Mode/contract changes are blocked during pending network record/check operations.
-- Wallet discovery reads values from the dynamic `window.midnight` map, filters Lace `io.lace.wallet` on API v4, and offers detected Lace choices. Selection/refresh/reconnect invalidate the previous connection and runner. Connect is invoked in the click event before any await and requires connected Preprod status.
-- Official providers use wallet configuration, extension calculation support when available, or the wallet's loopback calculation service. The fallback rejects non-loopback hosts. Indexer configuration comes from the wallet; service URLs and tokens are not stored in source or echoed to UI errors.
-- `network.ts` uses the generated bindings with private witnesses and official contract discovery/call APIs. `recordQuest` and `checkAttestation` wait for SDK finalization before returning selected result fields. No network sample issuer registration/approval is sent. Wrong membership returns NO MATCH; transport/approval failures are errors, not match results.
-- `copy-network-assets.mjs` copies only allowlisted generated public key/circuit artifacts after a build. It does not copy wallet files or private state. Browser WASM, Buffer, assert and WebSocket compatibility is checked through a real browser loading the SDK with an offline fixture.
-- `scripts/deploy-with-wallet.ts` calls official deployment with the public administrator identifier/scope. Its default memory-only store is rejected: a durable encrypted private-state provider and maintenance-key backup must be supplied by the operator. That durable storage integration is **not delivered** by this draft.
+Simulator is the default. Preprod uses a separate, memory-only journey; network session/log data is not persisted, and the sample export/import feature cannot share a network session. A failed network operation never silently substitutes a simulator result.
 
-Jest has 45 tests (32 contract/issuer tests and 13 offline wallet/mode guards). The demo helper suite has 20 checks; the official adapter has 4 additional offline tests. Strict TypeScript checking and the production build pass. The entire simulator business/engineer/MATCH/NO MATCH flow was checked at 390×844 and 1280×720. The Preprod mode guards and SDK import/provider construction were checked with an offline fixture at both sizes; **no real wallet or transaction was exercised**. Network session export through the sample sharing feature is rejected.
+`sendOnPreprod` in `src/lib/send-boundary.ts` is the shared send boundary. Network record/check, wallet balance/submit and both deployment entry points use it. Only the exact build value `VITE_ENABLE_PREPROD_TRANSACTIONS=true` permits entry. Unset, false, empty or other values stop before wallet balance/submission or SDK deployment. The flag is public configuration, not wallet consent or a secret.
+
+Before both balance and submit, the adapter freshly checks connected Preprod status and the originally selected shielded coin/encryption public keys. Lock/read failure, disconnection, network change or key change invalidates the adapter and runner. The UI clears the active selection and asks for reconnection. Wallet rejection is returned as a fixed error without automatic retry or raw service data. A new explicit user action may retry after a rejection; this does not resolve uncertain submission status (see issue 5).
+
+Contract re-selection removes the old runner before asynchronous validation. The edited address is distinct from the displayed active address. Failed selection leaves no active contract or sender. Normal selection replacement silently retires the old adapter; an actual wallet-state failure requests reconnection.
+
+Wallet discovery filters compatible Lace v4 entries from the dynamic extension map. Connect is initiated synchronously inside the user's click handler. Service configuration comes from Lace; local calculation fallback accepts only loopback hosts. Names are displayed as text. This compatibility filter is not independent authentication of an injected extension.
+
+## Deployment disabled: approved storage allowlist is empty
+
+Both `deployWithWallet` and `deployTarget` require the shared send gate **and** admission by `deployment-policy.ts`. No encrypted durable private-state implementation has completed approval, so its allowlist is empty and cannot be configured by a caller. Deployment stays disabled even with the transaction flag set to true. An arbitrary SDK provider, a different memory-backed object or a plaintext store cannot bypass this condition.
+
+The SDK saves contract private state and a contract maintenance signing key after deployment. A generic interface or a single class denylist cannot establish encryption, persistence or usable backups. A future reviewed change must introduce an audited provider factory, encrypted durable storage and tested recovery, then admit that implementation through the internal policy. That implementation is **planned, not delivered** here. No deployment entry point should be integrated as usable until that review is complete.
+
+## Offline validation
+
+Root Jest: 45 tests covering contract, issuer and mode dispatch. Simulator helpers: 20 checks. `npm run test:network` runs four adapter tests, one real SDK circuit/transaction-construction regression and 23 real-entry-point tests with injected offline SDK/wallet fixtures. Strict TypeScript checking includes the new tests; the existing demo build runs all these checks before bundling. Existing CI workflows are unchanged.
+
+The SDK regression uses actual generated constructor/circuit bindings, local compiled artifacts and SDK `createUnprovenCallTxFromInitialStates`. It passes protocol/indexer Ledger parameters through actual circuit execution and transcript partitioning, then assembles an **unsubmitted** transaction. It does not balance, sign, submit, calculate remotely or exercise a wallet. Test-only synthetic material is ephemeral and is not logged.
+
+Entry-point checks cover the exact gate values, zero send/deploy calls while disabled, explicit retry after user rejection, locked/disconnected/wrong-network wallets, key changes, network change during balance, failed contract re-selection, and redaction of synthetic sensitive errors. SDK transaction construction and mocked send behavior are separate tests; neither is live network acceptance.
 
 ## Version boundaries
 
-Generated circuits remain Compact 0.31.1, compiler Ledger 8.0.2, runtime 0.16.0. Application packages are pinned to Midnight.js 4.1.1, Compact.js 2.5.1 and connector API 4.0.1. The 4.1.1 protocol package itself pins its SDK Ledger dependency to **8.1.0**, so this draft uses protocol re-exports and a single 8.1.0 copy; on-chain runtime is pinned to 3.0.0 to match that protocol. The compiler has not been upgraded. Local compilation, type checks and simulator tests pass across these packages, but compatibility with the actual Preprod service and wallet transaction format still requires a live acceptance run.
+Generated artifacts remain Compact 0.31.1 / compiler Ledger 8.0.2 / runtime 0.16.0. SDK packages remain Midnight.js 4.1.1, Compact.js 2.5.1 and connector API 4.0.1. SDK Ledger 8.1.0 is a direct pinned dependency with overrides and a deduplicated lockfile. Vite also applies Ledger dedupe and a single browser entry alias. The Node SDK regression uses the same demo runtime resolution as the simulator smoke suite, not a second root runtime. On-chain runtime stays 3.0.0. The compiler is not upgraded.
 
-The network module is lazy-loaded and includes a large Ledger WASM (~10 MB uncompressed); key assets are also large. Latency, endpoint availability, CORS/loopback access from HTTPS, wallet rejections, indefinite finalization waits and fresh-path races remain untested. The SDK's join/call services can wait indefinitely; this draft does not yet add cancellation/recovery UX. It also does not yet track wallet account-change events. Disconnect/reconnect after an account/network change and repeat validation before transactions.
+## Known open issues
 
-## Reproduce the draft locally
+- **5 — Indefinite wait and recovery (planned).** SDK joining/finalization and wallet requests can wait indefinitely. Pending transaction state, retained public transaction ID, reconciliation and recovery UX are not implemented. A simple timeout that unlocks the UI while an operation can still submit is not an acceptable fix. Network recipient material remains memory-only and is lost on reload/mode change; do not use valuable records.
+- **7 — Compiler/SDK live compatibility (unconfirmed).** Compiler Ledger 8.0.2 and SDK Ledger 8.1.0 have not been tested together against actual Preprod and Lace. Offline circuit execution/transaction construction does not establish live service/transaction-format compatibility. A supported toolchain combination and live acceptance remain required.
+- **9 — NO MATCH classification by text (planned).** Membership failure is still recognized through error-message text. An external error containing the same text could be misclassified. Replace this with a typed contract error code and separate wallet/transport failures later. This classification is not changed in this update.
 
-From the repository root, use the main-based replacement draft branch. Main at `bd8e021` already includes issuer PR #12; this branch replays only PR #13's Preprod changes:
+Production issuer/admin operations, secure recipient backup/import, proactive account-change events, endpoint/CORS/HTTPS-loopback access, large asset latency and fresh-path races also remain planned or untested. The new pre-send checks do not supply pending-state recovery or continuous wallet-event monitoring.
+
+## Reproduce offline checks
 
 ```bash
 git checkout cursor/wave3-preprod-main
 npm install
+npm run compile
 npm test
 cd demo-web
 npm ci
+npm run typecheck
+npm run test:network
 npm run build
 npm run preview -- --host 127.0.0.1
 ```
 
-`npm run build` runs strict type checking and the four adapter tests before producing the bundle and public circuit assets. From the root, `npm run test:demo-web` runs the simulator helpers. A local browser can exercise Simulator mode without any wallet.
+From the repository root, `npm run test:demo-web` checks the simulator helpers. A browser can run Simulator without a wallet. Without a selected connected wallet/contract, network Save reports that no simulator action was taken. With the flag unset, record/check remain disabled even after selecting providers. Deployment remains disabled regardless of that flag until a provider is internally approved. Do not put secrets in any `VITE_` variable; browser build inputs are public.
 
-To inspect draft guards, open the mode panel, choose Preprod (draft) and open Engineer view. Without a connection and contract address, Save engineer record reports that no simulator action was taken. Switching back restores the local simulator journey. No deployment address is configured: the address input is blank unless the operator explicitly supplies a public address via `VITE_PREPROD_CONTRACT_ADDRESS` or the form. Do not set API tokens, seeds or secrets with the `VITE_` prefix, since these are public browser inputs.
+## Planned operator sequence
 
-Even with a connected wallet/address, the draft disables actual registration/check submission unless an operator explicitly builds with `VITE_ENABLE_PREPROD_TRANSACTIONS=true`. This is a public feature flag, not a secret. Do not enable it for valuable records before implementing durable recipient backup/recovery and completing the live tests below. The typed deployment helper is not invoked by the normal demo UI and requires its own operator-controlled entry point plus durable encrypted storage.
+After the storage policy is implemented and approved, confirm a supported compiler/SDK/wallet combination, prepare the owner's funded Preprod wallet and loopback calculation service, securely retain independent administrator/issuer material, and connect through an explicit user gesture. Integrate deployment only into a reviewed operator-controlled entry point, with the common flag enabled and an internally admitted encrypted provider. Obtain the owner's Lace approval, reconcile finalization and confirm public address/keys with the official indexer before updating the address statement in a new reviewed commit.
 
-## Planned operator steps before deployment
-
-1. Prepare your own funded Preprod Lace wallet and the current supported local calculation service, following [network setup](https://docs.midnight.network/guides/networks-and-environments), [test funding](https://docs.midnight.network/guides/acquire-tokens) and [deployment guidance](https://docs.midnight.network/guides/deploy-and-operate). Confirm fee balance/tDUST and wallet network. The fallback URL must be loopback, for example `http://localhost:6300`.
-2. Implement/configure an SDK `PrivateStateProvider` that durably encrypts private state and maintenance keys, with a tested backup/recovery procedure. Do not use the memory-only default for deployment. Any node-side service token must be environment-only; browser providers normally obtain service settings from Lace.
-3. Generate independent random administrator/issuer secrets and a unique nonzero deployment scope **locally outside source control**. Derive the public administrator and issuer identifiers using the generated pure circuits. Keep the authority secrets separate from the wallet seed and from recipient material.
-4. Compile the contract with the pinned full compiler bundle. Serve `demo-web/dist/contract-assets/` as public static files. Connect Lace from an explicit user gesture and confirm Preprod. Integrate the typed deployment helper into an operator-controlled browser entry point; it is not exposed as an automatic deploy button in this draft.
-5. Call the helper with an already approved `ConnectedAPI`, public constructor values, asset URL and durable store:
-
-```typescript
-import { deployWithWallet } from './scripts/deploy-with-wallet';
-
-const publicResult = await deployWithWallet({
-  connected,                  // From the operator's own approved Lace connection
-  assetBaseURL,               // Public contract-assets URL ending with /
-  adminKeyHex,                // Public hash identifier, not the private secret
-  scopeHex,                   // Public unique deployment scope
-  durablePrivateState,        // Operator-owned encrypted, backed-up SDK provider
-});
-// Retain only publicResult.contractAddress and publicResult.transactionId here.
-```
-
-6. After the operator approves the wallet action and deployment finalizes, confirm the address and generated verifier keys through the official indexer. Add the actual **public** contract address and finalization reference to this document/root README in a new reviewed commit. This step is planned; there is no address to record now.
-7. The administrator registers the public issuer identifier; that issuer authorizes the recipient's exact quest ID/commitment/nullifier tuple using private issuer witnesses and the contract's scope. The browser does not implement a production reviewer/admin workflow or automatically acquire an approval. Set up this issuer approval out of band using the generated circuits/official contract API before attempting a recipient registration.
-8. Supply the deployed public address in the draft panel, connect your own wallet and select the contract. Preserve recipient record material securely before attempting a real registration. This draft keeps network session material in memory only: reload/mode switching discards it, and durable recipient backup/import UX remains planned. Do not use it for valuable or irreplaceable records yet.
-9. Exercise actual registration, matching/wrong-secret checks, rejection/retry cases, wallet disconnect/account changes and finalization at both viewport sizes. Save public transaction references, not the SDK's entire returned objects, because those contain private execution data. Until this acceptance run succeeds, keep this PR Draft.
+Issuer registration and exact record authorization remain out-of-band; the browser never automatically sends sample issuer setup in network mode. Before attempting recipient registration, implement safe recipient recovery, authorize its exact tuple, exercise real approval/rejection/network-change and finalization paths, and retain only public transaction references. These operator steps are **planned**. No address or live outcome is supplied now.
 
 ## Public ledger disclosures
 
-Network mode does not change the contract's disclosure rules: tree root/state/leaf hashes and positions, nullifiers, count, public administrator identifier/scope, registered issuer identifiers and authorization markers are public. Authorization can be linked to registration and issuer. Checks disclose public challenge, shared root, response and query/success structure, not selected leaf, quest ID, path or issuer marker. Wallet/fee/timing metadata adds network correlation risk. See the root README for challenge reuse, small-tree and path-freshness limitations.
+A future network deployment retains the contract's existing disclosures: tree state/leaf hashes and positions, nullifiers, count, public administrator identifier/scope, issuer identifiers and authorization markers. Authorization can be linked to registration and issuer. Checks disclose public challenge, shared root, response and query/success structure, not the selected leaf, quest ID, path or issuer marker. Wallet/fee/timing metadata adds correlation risk. See the root README for challenge reuse, small-tree and path-freshness limitations.
 
-The reference repository/site and the existing Pages demo branch have not been changed. Do not merge or publish this draft automatically.
+No merge or automatic publication is requested. The existing Pages demo branch and other repositories/sites are untouched.
