@@ -10,6 +10,7 @@ import {
 } from '@midnight-ntwrk/compact-runtime';
 
 export class ContractSimulator {
+  /** @param {unknown} witnesses @param {string | null} [publicStateHex] */
   constructor(witnesses, publicStateHex = null) {
     this.contract = new Contract(witnesses);
     this.sampleAuthority = { adminSecret: randomBytes32(), issuerSecret: randomBytes32() };

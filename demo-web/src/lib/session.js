@@ -72,5 +72,5 @@ export function checkSession(session, questIdHex, challengeHex, differentSecret 
   }
   sim.contract.witnesses = createCheckWitnesses(material);
   const result = sim.callCircuit('checkAttestation', challenge);
-  return { responseHex: bytesToHex(result.result), ledger: ledgerSnapshot(sim) };
+  return { membership: 'match', responseHex: bytesToHex(result.result), ledger: ledgerSnapshot(sim) };
 }

@@ -6,7 +6,7 @@ import { recordWitnesses } from '../../contract/witnesses.js';
 import { hexToBytes } from '../src/lib/bytes.js';
 import { compileContract, createProviders, deployTarget } from '../src/lib/wallet-adapter.js';
 import { sendOnPreprod, PreprodSafetyError } from '../src/lib/send-boundary.js';
-import { requireApprovedPrivateState } from '../src/lib/deployment-policy.js';
+import { requireDeploymentPermission } from '../src/lib/deployment-policy.js';
 
 type PS = Record<string, never>;
 type Target = Contract<PS>;
@@ -21,7 +21,7 @@ export function deployWithWallet(input: {
   durablePrivateState: PrivateStateProvider<PrivateStateId, PS>;
 }, injected: Partial<Dependencies> = {}) {
   return sendOnPreprod(async () => {
-    requireApprovedPrivateState(input.durablePrivateState);
+    await requireDeploymentPermission(input.durablePrivateState);
     const deps: Dependencies = { createProviders, compileContract, deployTarget, ...injected };
     try {
       const admin = hexToBytes(input.adminKeyHex);

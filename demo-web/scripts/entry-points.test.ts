@@ -1,4 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import 'fake-indexeddb/auto';
+import { webcrypto } from 'node:crypto';
+import { EncryptedPrivateStateProvider } from '../src/lib/encrypted-private-state.js';
 import type { ConnectedAPI, Configuration } from '@midnight-ntwrk/dapp-connector-api';
 import * as protocolLedger from '@midnight-ntwrk/midnight-js-protocol/ledger';
 import { createConstructorContext } from '@midnight-ntwrk/compact-runtime';
@@ -11,6 +14,7 @@ import { sendOnPreprod } from '../src/lib/send-boundary.js';
 import { selectPreprodContract } from '../src/lib/contract-selection.js';
 import { currentExecutionMode, selectExecutionMode, recordInMode, checkInMode } from '../src/lib/execution.js';
 import { exportMaterial } from '../src/lib/simulator.js';
+import { TransactionRecovery } from '../src/lib/transaction-recovery.js';
 
 const ADDRESS = 'a'.repeat(64);
 const MARKER = 'SENSITIVE_TEST_MARKER';
@@ -26,6 +30,7 @@ function fixture() {
   let locked = false;
   const balance = vi.fn(async () => ({ tx: '01' }));
   const submit = vi.fn(async () => {});
+  const watch = vi.fn(async (id: string) => ({ status: 'SucceedEntirely', identifiers: [id] }));
   const connected = {
     getConnectionStatus: vi.fn(async () => status),
     getShieldedAddresses: vi.fn(async () => { if (locked) throw new Error(MARKER); return currentKeys; }),
@@ -35,26 +40,32 @@ function fixture() {
   let notifyInvalidated: () => void = onInvalidated;
   const adapter = createWalletAdapter(connected, keys, () => notifyInvalidated());
   vi.spyOn(protocolLedger.Transaction, 'deserialize').mockReturnValue(fakeTx);
+  let scoped = adapter;
   const sdkRecord = vi.fn(async () => {
-    const balanced = await adapter.walletProvider.balanceTx(fakeTx as unknown as Parameters<typeof adapter.walletProvider.balanceTx>[0]);
-    await adapter.midnightProvider.submitTx(balanced);
+    const balanced = await scoped.walletProvider.balanceTx(fakeTx as unknown as Parameters<typeof adapter.walletProvider.balanceTx>[0]);
+    await scoped.midnightProvider.submitTx(balanced);
     return { public: { txId: 'offline-id', nextContractState: initialState() }, private: { result: new Uint8Array(32) } };
   });
-  const providers = { ...adapter, privateStateProvider: new InMemoryPrivateStateProvider<Record<string, never>>() };
+  const providers = { ...adapter, privateStateProvider: new InMemoryPrivateStateProvider<Record<string, never>>(), publicDataProvider: { watchForTxData: watch } };
   const create = vi.fn(async (_connected: ConnectedAPI, _assets: string, notify?: () => void) => {
     notifyInvalidated = notify ?? onInvalidated;
-    return { providers, configuration: { networkId: 'preprod' } as Configuration, invalidate: adapter.invalidate };
+    return { providers, configuration: { networkId: 'preprod' } as Configuration, invalidate: adapter.invalidate, forAttempt: adapter.withAttempt };
   });
   const compile = vi.fn(() => ({}));
-  const join = vi.fn(async () => ({ callTx: { recordQuest: sdkRecord, checkAttestation: sdkRecord } }));
+  const join = vi.fn(async (selected: typeof providers) => {
+    scoped = selected;
+    return { callTx: { recordQuest: sdkRecord, checkAttestation: sdkRecord } };
+  });
   const deps = {
     createProviders: create as unknown as typeof createProviders,
     compileContract: compile as unknown as typeof compileContract,
     joinTarget: join as unknown as typeof joinTarget,
     assetBaseURL: () => 'https://example.invalid/contract-assets/',
+    recovery: new TransactionRecovery({ lock: async (operation) => operation() }),
+    readStatus: async (_url: string, id: string) => watch(id),
   };
   return {
-    connected, adapter, onInvalidated, balance, submit, sdkRecord, create, compile, join, deps,
+    connected, adapter, onInvalidated, balance, submit, watch, sdkRecord, create, compile, join, deps,
     setStatus: (value: typeof status) => { status = value; },
     setKeys: (value: typeof keys) => { currentKeys = value; },
     setLocked: (value: boolean) => { locked = value; },
@@ -84,16 +95,16 @@ describe('shared send boundary and real entry points, offline only', () => {
     expect(f.balance).not.toHaveBeenCalled(); expect(f.submit).not.toHaveBeenCalled();
   });
   test('user declines balance: actual runner releases dispatcher lock and retry is explicit', async () => {
-    const f = fixture(); f.balance.mockRejectedValueOnce(new Error(MARKER));
+    const f = fixture(); f.balance.mockRejectedValueOnce(Object.assign(new Error(MARKER), { type: 'DAppConnectorAPIError', code: 'Rejected' }));
     const runner = await createNetworkRunner(f.connected, ADDRESS, f.onInvalidated, f.deps);
     selectExecutionMode('preprod', runner);
-    await expect(recordInMode(sampleSession())).rejects.toThrow('failed or was declined');
+    await expect(recordInMode(sampleSession())).rejects.toMatchObject({ code: 'WALLET_REJECTED' });
     expect(f.submit).not.toHaveBeenCalled(); expect(f.onInvalidated).not.toHaveBeenCalled();
     const result = await recordInMode(sampleSession()); expect(result.recorded).toBe(true);
     expect(f.balance).toHaveBeenCalledTimes(2); expect(f.submit).toHaveBeenCalledTimes(1);
   });
   test('user declines submit: error is redacted and no automatic retry occurs', async () => {
-    const f = fixture(); f.submit.mockRejectedValueOnce(new Error(MARKER));
+    const f = fixture(); f.submit.mockRejectedValueOnce(Object.assign(new Error(MARKER), { type: 'DAppConnectorAPIError', code: 'Rejected' }));
     const runner = await createNetworkRunner(f.connected, ADDRESS, f.onInvalidated, f.deps);
     const log = vi.spyOn(console, 'log'); const errorLog = vi.spyOn(console, 'error');
     const error = await runner.record(sampleSession()).catch((e: Error) => e);
@@ -126,9 +137,46 @@ describe('shared send boundary and real entry points, offline only', () => {
     }
     expect(init).not.toHaveBeenCalled(); expect(sdkDeploy).not.toHaveBeenCalled(); expect(f.balance).not.toHaveBeenCalled(); expect(f.submit).not.toHaveBeenCalled();
   });
+  test('even an unlocked encrypted vault with a restore-checked backup cannot bypass the empty allowlist', async () => {
+    const f = fixture(); const sdkDeploy = vi.fn(); const init = vi.fn();
+    const passphrase = Array.from(webcrypto.getRandomValues(new Uint8Array(24)), (n) => n.toString(16).padStart(2, '0')).join('');
+    const store = new EncryptedPrivateStateProvider<Record<string, never>>({ databaseName: `entry-test-${webcrypto.randomUUID()}`, indexedDB, crypto: webcrypto as unknown as Crypto });
+    await store.initialize(passphrase); const backup = await store.exportEncryptedBackup(); await store.confirmRestore(backup, passphrase);
+    expect(store.getReadiness().deployReady).toBe(true);
+    await expect(deployWithWallet({ connected: f.connected, assetBaseURL: 'https://example.invalid/', adminKeyHex: '1'.repeat(64), scopeHex: '2'.repeat(64), durablePrivateState: store }, { createProviders: init as unknown as typeof createProviders, deployTarget: sdkDeploy as unknown as typeof deployTarget })).rejects.toThrow('no approved');
+    await expect(deployTarget({ privateStateProvider: store } as never, {} as never)).rejects.toThrow('no approved');
+    expect(init).not.toHaveBeenCalled(); expect(sdkDeploy).not.toHaveBeenCalled(); expect(f.balance).not.toHaveBeenCalled(); expect(f.submit).not.toHaveBeenCalled(); store.lock();
+  });
   test('provider initialization errors do not echo service data', async () => {
     const f = fixture(); f.create.mockRejectedValueOnce(new Error(MARKER));
     await expect(createNetworkRunner(f.connected, ADDRESS, f.onInvalidated, f.deps)).rejects.not.toThrow(MARKER);
+  });
+  test('unknown submit error retains ID and blocks a duplicate actual entry-point call', async () => {
+    const f = fixture(); f.submit.mockRejectedValueOnce(new Error(MARKER));
+    const runner = await createNetworkRunner(f.connected, ADDRESS, f.onInvalidated, f.deps);
+    await expect(runner.record(sampleSession())).rejects.toMatchObject({ code: 'PENDING' });
+    expect(f.deps.recovery.getSnapshot()).toEqual({ state: 'unknown', txId: 'offline-id' });
+    expect(f.deps.recovery.reset()).toBe(false);
+    await expect(runner.record(sampleSession())).rejects.toMatchObject({ code: 'PENDING' });
+    expect(f.submit).toHaveBeenCalledTimes(1);
+    await f.deps.recovery.checkStatusAgain(); expect(f.watch).toHaveBeenCalledWith('offline-id');
+    expect(f.deps.recovery.getSnapshot().state).toBe('confirmed'); expect(f.submit).toHaveBeenCalledTimes(1);
+  });
+  test('SDK finalization timeout keeps pending ID and cannot be turned into MATCH', async () => {
+    const f = fixture(); f.deps.recovery = new TransactionRecovery({ timeoutMs: 15, lock: async (operation) => operation() });
+    const original = f.sdkRecord.getMockImplementation()!;
+    f.sdkRecord.mockImplementationOnce(async () => { await original(); return new Promise(() => {}); });
+    const runner = await createNetworkRunner(f.connected, ADDRESS, f.onInvalidated, f.deps);
+    await expect(runner.record(sampleSession())).rejects.toMatchObject({ code: 'PENDING' });
+    expect(f.deps.recovery.getSnapshot().txId).toBe('offline-id');
+    await expect(runner.record(sampleSession())).rejects.toMatchObject({ code: 'PENDING' });
+    expect(f.submit).toHaveBeenCalledTimes(1);
+  });
+  test('unscoped wallet providers cannot submit outside a recovery attempt', async () => {
+    const f = fixture();
+    await expect(f.adapter.walletProvider.balanceTx(fakeTx as never)).rejects.toMatchObject({ code: 'PENDING' });
+    await expect(f.adapter.midnightProvider.submitTx(fakeTx)).rejects.toMatchObject({ code: 'PENDING' });
+    expect(f.balance).not.toHaveBeenCalled(); expect(f.submit).not.toHaveBeenCalled();
   });
   test('failed contract re-selection clears active address and old sender before asynchronous work', async () => {
     const f = fixture(); const oldRunner = await createNetworkRunner(f.connected, ADDRESS, f.onInvalidated, f.deps);

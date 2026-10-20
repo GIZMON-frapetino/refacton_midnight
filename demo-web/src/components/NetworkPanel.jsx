@@ -2,6 +2,10 @@ import { useState } from 'react';
 import { availableWallets, assertPreprodConnection, requestPreprodConnection } from '../lib/wallet-discovery.js';
 import { selectExecutionMode } from '../lib/execution.js';
 import { selectPreprodContract, ContractSelectionSuperseded } from '../lib/contract-selection.js';
+import { connectWithTimeout } from '../lib/transaction-recovery.ts';
+import { createEncryptedPrivateStateProvider } from '../lib/encrypted-private-state.ts';
+import TransactionRecoveryPanel from './TransactionRecoveryPanel.jsx';
+import EncryptedStoragePanel from './EncryptedStoragePanel.jsx';
 import './NetworkPanel.css';
 
 export default function NetworkPanel({ mode, onModeChange }) {
@@ -12,6 +16,7 @@ export default function NetworkPanel({ mode, onModeChange }) {
   const [activeAddress, setActiveAddress] = useState(null);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
+  const [vault] = useState(() => createEncryptedPrivateStateProvider());
 
   function changeMode(next) {
     if (busy || next === mode) return;
@@ -39,8 +44,10 @@ export default function NetworkPanel({ mode, onModeChange }) {
       selectExecutionMode('preprod');
       setApi(null);
       setActiveAddress(null);
-      const connection = requestPreprodConnection(wallets[choice]);
-      const connected = await assertPreprodConnection(await connection);
+      const connected = await connectWithTimeout(() => {
+        const connection = requestPreprodConnection(wallets[choice]);
+        return connection.then(assertPreprodConnection);
+      });
       setApi(connected);
       setMessage('Wallet connected to Preprod. No transaction has been submitted.');
     } catch {
@@ -52,16 +59,20 @@ export default function NetworkPanel({ mode, onModeChange }) {
     setMessage('');
     setBusy(true);
     try {
-      await selectPreprodContract(api, address, async (...args) => {
+      await connectWithTimeout(() => selectPreprodContract(api, address, async (...args) => {
         const { createNetworkRunner } = await import('../lib/network.ts');
-        return createNetworkRunner(...args);
+        return createNetworkRunner(...args, { privateStateProvider: vault.getReadiness().unlocked ? vault : undefined });
       }, setActiveAddress, () => {
         setApi(null);
         setMessage('Wallet connection, network or public key changed. Reconnect Lace and select the contract again.');
-      });
+      }));
       setMessage('Address and SDK providers selected. Live transactions are disabled by default in this draft. Operator approval, prior issuer authorization and live validation are still required.');
     } catch (error) {
-      if (!(error instanceof ContractSelectionSuperseded)) setMessage('Could not select this contract. Check wallet, address, service and circuit assets. Sending remains disabled until selection succeeds.');
+      if (!(error instanceof ContractSelectionSuperseded)) {
+        selectExecutionMode('preprod');
+        setActiveAddress(null);
+        setMessage('Contract selection failed or timed out. Reconnect and try again. No transaction was sent.');
+      }
     } finally { setBusy(false); }
   }
 
@@ -87,6 +98,9 @@ export default function NetworkPanel({ mode, onModeChange }) {
           <p className="active-contract" role="status">Active contract: {activeAddress ?? 'None — sending is unavailable'}</p>
           <button type="button" disabled={busy || !api} onClick={useContract}>Use this Preprod contract</button>
           <p>Connection alone does not submit a transaction. Record/check actions request wallet approval and wait for finalization.</p>
+          <EncryptedStoragePanel provider={vault} />
+          <p>Unlock before selecting a contract to use encrypted SDK private state. Otherwise that selection uses memory-only private state. Recipient record material is not backed up automatically.</p>
+          <TransactionRecoveryPanel />
         </>}
         {message && <p className="network-message" role="status">{message}</p>}
       </div>

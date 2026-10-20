@@ -16,7 +16,9 @@ import type { Contract } from '@midnight-ntwrk/midnight-js-protocol/compact-js';
 import * as protocolLedger from '@midnight-ntwrk/midnight-js-protocol/ledger';
 import type { ContractAddress, SigningKey } from '@midnight-ntwrk/midnight-js-protocol/compact-runtime';
 import { sendOnPreprod, PreprodSafetyError } from './send-boundary.js';
-import { requireApprovedPrivateState } from './deployment-policy.js';
+import { requireDeploymentPermission } from './deployment-policy.js';
+import { TransactionRecoveryError, type SendAttempt } from './transaction-recovery.js';
+import { createAppError, isAppError, ERROR_CODES } from './check-errors.js';
 import {
   createProofProvider,
   type ExportPrivateStatesOptions,
@@ -44,11 +46,13 @@ export type WalletAdapter = Readonly<{
   walletProvider: WalletProvider;
   midnightProvider: MidnightProvider;
   invalidate: (notify?: boolean) => void;
+  withAttempt: (attempt: SendAttempt) => WalletAdapter;
 }>;
 export type PreparedProviders<K extends string, PS> = Readonly<{
   providers: MidnightProviders<K, PrivateStateId, PS>;
   configuration: Configuration;
   invalidate: (notify?: boolean) => void;
+  forAttempt: (attempt: SendAttempt) => WalletAdapter;
 }>;
 
 export function enumerateLace(): readonly LaceChoice[] {
@@ -190,28 +194,51 @@ export function createWalletAdapter(
       throw new PreprodSafetyError('RECONNECT');
     }
   }
+  function scoped(attempt?: SendAttempt): WalletAdapter {
+  const requireAttempt = () => { if (!attempt) throw new TransactionRecoveryError(); attempt.guard(); return attempt; };
   const walletProvider: WalletProvider = {
     getCoinPublicKey: () => shielded.shieldedCoinPublicKey,
     getEncryptionPublicKey: () => shielded.shieldedEncryptionPublicKey,
     balanceTx: (tx) => sendOnPreprod(async () => {
+      const currentAttempt = requireAttempt();
       await requireCurrentWallet();
+      currentAttempt.beforeBalance();
       try {
         const balanced = await connected.balanceUnsealedTransaction(bytesToHex(tx.serialize()));
+        currentAttempt.guard();
         return protocolLedger.Transaction.deserialize('signature', 'proof', 'binding', hexToBytes(balanced.tx));
-      } catch { throw new Error('Wallet balance request failed or was declined. No automatic retry was made.'); }
+      } catch (error) {
+        if (isAppError(error)) throw error;
+        throw createAppError(isWalletRejection(error) ? ERROR_CODES.WALLET_REJECTED : ERROR_CODES.NETWORK_FAILURE);
+      }
     }),
   };
   const midnightProvider: MidnightProvider = {
     submitTx: (tx) => sendOnPreprod(async () => {
+      const currentAttempt = requireAttempt();
       await requireCurrentWallet();
       const [txId] = tx.identifiers();
       if (txId === undefined) throw new Error('The transaction has no identifier.');
+      currentAttempt.beforeSubmit(txId);
       try { await connected.submitTransaction(bytesToHex(tx.serialize())); }
-      catch { throw new Error('Wallet submission failed or was declined. Submission status may be uncertain; no automatic retry was made.'); }
+      catch (error) {
+        if (isWalletRejection(error)) {
+          currentAttempt.submitRejected();
+          throw createAppError(ERROR_CODES.WALLET_REJECTED);
+        }
+        throw new TransactionRecoveryError();
+      }
       return txId;
     }),
   };
-  return { walletProvider, midnightProvider, invalidate };
+  return { walletProvider, midnightProvider, invalidate, withAttempt: scoped };
+  }
+  return scoped();
+}
+
+function isWalletRejection(value: unknown): boolean {
+  const error = value as { type?: unknown; code?: unknown } | null;
+  return error?.type === 'DAppConnectorAPIError' && (error.code === 'Rejected' || error.code === 'PermissionRejected');
 }
 
 export async function prepareProviders<K extends string, PS>(input: Readonly<{
@@ -231,6 +258,7 @@ export async function prepareProviders<K extends string, PS>(input: Readonly<{
   return {
     configuration,
     invalidate: adapter.invalidate,
+    forAttempt: adapter.withAttempt,
     providers: {
       privateStateProvider: new InMemoryPrivateStateProvider<PS>(),
       publicDataProvider: indexerPublicDataProvider(
@@ -253,7 +281,7 @@ export function createProviders<K extends string, PS>(
 }
 
 export function requireDurablePrivateState<PS>(provider: PrivateStateProvider<PrivateStateId, PS>) {
-  return requireApprovedPrivateState(provider);
+  return requireDeploymentPermission(provider);
 }
 
 export function deployTarget<C extends Contract.Any>(
@@ -261,7 +289,7 @@ export function deployTarget<C extends Contract.Any>(
   options: DeployContractOptionsWithPrivateState<C>,
 ) {
   return sendOnPreprod(async () => {
-    requireApprovedPrivateState(providers.privateStateProvider);
+    await requireDeploymentPermission(providers.privateStateProvider);
     return deployContract(providers, options);
   });
 }
