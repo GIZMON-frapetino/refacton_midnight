@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { availableWallets, assertPreprodConnection, requestPreprodConnection, requireContractAddress } from '../lib/wallet-discovery.js';
+import { availableWallets, assertPreprodConnection, requestPreprodConnection } from '../lib/wallet-discovery.js';
 import { selectExecutionMode } from '../lib/execution.js';
+import { selectPreprodContract, ContractSelectionSuperseded } from '../lib/contract-selection.js';
 import './NetworkPanel.css';
 
 export default function NetworkPanel({ mode, onModeChange }) {
@@ -8,6 +9,7 @@ export default function NetworkPanel({ mode, onModeChange }) {
   const [choice, setChoice] = useState(0);
   const [api, setApi] = useState(null);
   const [address, setAddress] = useState(import.meta.env.VITE_PREPROD_CONTRACT_ADDRESS ?? '');
+  const [activeAddress, setActiveAddress] = useState(null);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -23,6 +25,7 @@ export default function NetworkPanel({ mode, onModeChange }) {
     try {
       selectExecutionMode('preprod');
       setApi(null);
+      setActiveAddress(null);
       setWallets(availableWallets());
       setChoice(nextChoice);
       setMessage('Wallet selection changed. Connect again before selecting a contract.');
@@ -35,6 +38,7 @@ export default function NetworkPanel({ mode, onModeChange }) {
     try {
       selectExecutionMode('preprod');
       setApi(null);
+      setActiveAddress(null);
       const connection = requestPreprodConnection(wallets[choice]);
       const connected = await assertPreprodConnection(await connection);
       setApi(connected);
@@ -48,16 +52,16 @@ export default function NetworkPanel({ mode, onModeChange }) {
     setMessage('');
     setBusy(true);
     try {
-      const target = requireContractAddress(address);
-      if (!api) throw new Error('Connect Lace first.');
-      await assertPreprodConnection(api);
-      const { createNetworkRunner } = await import('../lib/network.ts');
-      const runner = await createNetworkRunner(api, target);
-      selectExecutionMode('preprod', runner);
+      await selectPreprodContract(api, address, async (...args) => {
+        const { createNetworkRunner } = await import('../lib/network.ts');
+        return createNetworkRunner(...args);
+      }, setActiveAddress, () => {
+        setApi(null);
+        setMessage('Wallet connection, network or public key changed. Reconnect Lace and select the contract again.');
+      });
       setMessage('Address and SDK providers selected. Live transactions are disabled by default in this draft. Operator approval, prior issuer authorization and live validation are still required.');
     } catch (error) {
-      // Do not echo wallet configuration or service URLs, which may contain tokens.
-      setMessage(error?.message?.startsWith('Supply a deployed') ? error.message : 'Could not select this contract. Check wallet, address, local service and published circuit assets. No simulator fallback was used.');
+      if (!(error instanceof ContractSelectionSuperseded)) setMessage('Could not select this contract. Check wallet, address, service and circuit assets. Sending remains disabled until selection succeeds.');
     } finally { setBusy(false); }
   }
 
@@ -79,7 +83,8 @@ export default function NetworkPanel({ mode, onModeChange }) {
           <button type="button" disabled={busy} onClick={() => refreshWallets()}>Refresh wallets</button>
           <button type="button" disabled={busy || !wallets.length} onClick={connect}>{busy ? 'Waiting…' : 'Connect wallet to Preprod'}</button>
           <label htmlFor="preprod-contract-address">Deployed contract address</label>
-          <input id="preprod-contract-address" value={address} onChange={(event) => setAddress(event.target.value)} placeholder="Not deployed in this draft" autoComplete="off" spellCheck={false} />
+          <input id="preprod-contract-address" disabled={busy} value={address} onChange={(event) => setAddress(event.target.value)} placeholder="Not deployed in this draft" autoComplete="off" spellCheck={false} />
+          <p className="active-contract" role="status">Active contract: {activeAddress ?? 'None — sending is unavailable'}</p>
           <button type="button" disabled={busy || !api} onClick={useContract}>Use this Preprod contract</button>
           <p>Connection alone does not submit a transaction. Record/check actions request wallet approval and wait for finalization.</p>
         </>}

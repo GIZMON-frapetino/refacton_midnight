@@ -8,3 +8,4 @@
 .network-mode { display: flex; gap: 8px; }
 .network-mode button[aria-pressed="true"] { color: #fff; background: #603dc5; }
 .network-panel-body .network-message { padding: 10px; background: #eee8fb; border-radius: 8px; overflow-wrap: anywhere; }
+.network-panel-body .active-contract { overflow-wrap: anywhere; font-family: ui-monospace, monospace; }
