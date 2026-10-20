@@ -15,6 +15,8 @@ import { CompiledContract } from '@midnight-ntwrk/midnight-js-protocol/compact-j
 import type { Contract } from '@midnight-ntwrk/midnight-js-protocol/compact-js';
 import * as protocolLedger from '@midnight-ntwrk/midnight-js-protocol/ledger';
 import type { ContractAddress, SigningKey } from '@midnight-ntwrk/midnight-js-protocol/compact-runtime';
+import { sendOnPreprod, PreprodSafetyError } from './send-boundary.js';
+import { requireApprovedPrivateState } from './deployment-policy.js';
 import {
   createProofProvider,
   type ExportPrivateStatesOptions,
@@ -41,10 +43,12 @@ export type GeneratedContract<C extends Contract.Any> = Parameters<
 export type WalletAdapter = Readonly<{
   walletProvider: WalletProvider;
   midnightProvider: MidnightProvider;
+  invalidate: (notify?: boolean) => void;
 }>;
 export type PreparedProviders<K extends string, PS> = Readonly<{
   providers: MidnightProviders<K, PrivateStateId, PS>;
   configuration: Configuration;
+  invalidate: (notify?: boolean) => void;
 }>;
 
 export function enumerateLace(): readonly LaceChoice[] {
@@ -163,31 +167,57 @@ export class InMemoryPrivateStateProvider<PS>
 }
 
 export function createWalletAdapter(
-  connected: Pick<ConnectedAPI, 'balanceUnsealedTransaction' | 'submitTransaction'>,
+  connected: Pick<ConnectedAPI, 'balanceUnsealedTransaction' | 'submitTransaction' | 'getConnectionStatus' | 'getShieldedAddresses'>,
   shielded: Awaited<ReturnType<ConnectedAPI['getShieldedAddresses']>>,
+  onInvalidated: () => void = () => {},
 ): WalletAdapter {
+  let active = true;
+  function invalidate(notify = true) {
+    if (!active) return;
+    active = false;
+    if (notify) onInvalidated();
+  }
+  async function requireCurrentWallet() {
+    try {
+      if (!active) throw new Error();
+      const status = await connected.getConnectionStatus();
+      if (status.status !== 'connected' || status.networkId !== PREPROD_NETWORK) throw new Error();
+      const current = await connected.getShieldedAddresses();
+      if (current.shieldedCoinPublicKey !== shielded.shieldedCoinPublicKey || current.shieldedEncryptionPublicKey !== shielded.shieldedEncryptionPublicKey) throw new Error();
+      if (!active) throw new Error();
+    } catch {
+      invalidate();
+      throw new PreprodSafetyError('RECONNECT');
+    }
+  }
   const walletProvider: WalletProvider = {
     getCoinPublicKey: () => shielded.shieldedCoinPublicKey,
     getEncryptionPublicKey: () => shielded.shieldedEncryptionPublicKey,
-    balanceTx: async (tx) => {
-      const balanced = await connected.balanceUnsealedTransaction(bytesToHex(tx.serialize()));
-      return protocolLedger.Transaction.deserialize('signature', 'proof', 'binding', hexToBytes(balanced.tx));
-    },
+    balanceTx: (tx) => sendOnPreprod(async () => {
+      await requireCurrentWallet();
+      try {
+        const balanced = await connected.balanceUnsealedTransaction(bytesToHex(tx.serialize()));
+        return protocolLedger.Transaction.deserialize('signature', 'proof', 'binding', hexToBytes(balanced.tx));
+      } catch { throw new Error('Wallet balance request failed or was declined. No automatic retry was made.'); }
+    }),
   };
   const midnightProvider: MidnightProvider = {
-    submitTx: async (tx) => {
+    submitTx: (tx) => sendOnPreprod(async () => {
+      await requireCurrentWallet();
       const [txId] = tx.identifiers();
       if (txId === undefined) throw new Error('The transaction has no identifier.');
-      await connected.submitTransaction(bytesToHex(tx.serialize()));
+      try { await connected.submitTransaction(bytesToHex(tx.serialize())); }
+      catch { throw new Error('Wallet submission failed or was declined. Submission status may be uncertain; no automatic retry was made.'); }
       return txId;
-    },
+    }),
   };
-  return { walletProvider, midnightProvider };
+  return { walletProvider, midnightProvider, invalidate };
 }
 
 export async function prepareProviders<K extends string, PS>(input: Readonly<{
   connected: ConnectedAPI;
   assetBaseURL: string;
+  onInvalidated?: () => void;
 }>): Promise<PreparedProviders<K, PS>> {
   setNetworkId(PREPROD_NETWORK);
   const configuration = await input.connected.getConfiguration();
@@ -197,9 +227,10 @@ export async function prepareProviders<K extends string, PS>(input: Readonly<{
   const shielded = await input.connected.getShieldedAddresses();
   const zkConfigProvider = new FetchZkConfigProvider<K>(input.assetBaseURL);
   const proofProvider = await selectProofProvider(input.connected, configuration, zkConfigProvider);
-  const adapter = createWalletAdapter(input.connected, shielded);
+  const adapter = createWalletAdapter(input.connected, shielded, input.onInvalidated);
   return {
     configuration,
+    invalidate: adapter.invalidate,
     providers: {
       privateStateProvider: new InMemoryPrivateStateProvider<PS>(),
       publicDataProvider: indexerPublicDataProvider(
@@ -216,23 +247,23 @@ export async function prepareProviders<K extends string, PS>(input: Readonly<{
 export function createProviders<K extends string, PS>(
   connected: ConnectedAPI,
   assetBaseURL: string,
+  onInvalidated?: () => void,
 ): Promise<PreparedProviders<K, PS>> {
-  return prepareProviders({ connected, assetBaseURL });
+  return prepareProviders({ connected, assetBaseURL, onInvalidated });
 }
 
 export function requireDurablePrivateState<PS>(provider: PrivateStateProvider<PrivateStateId, PS>) {
-  if (!provider || provider instanceof InMemoryPrivateStateProvider) {
-    throw new Error('Deployment requires a durable encrypted private-state provider and maintenance-key backup. The default memory-only store is not suitable.');
-  }
-  return provider;
+  return requireApprovedPrivateState(provider);
 }
 
 export function deployTarget<C extends Contract.Any>(
   providers: ContractProviders<C>,
   options: DeployContractOptionsWithPrivateState<C>,
 ) {
-  requireDurablePrivateState(providers.privateStateProvider);
-  return deployContract(providers, options);
+  return sendOnPreprod(async () => {
+    requireApprovedPrivateState(providers.privateStateProvider);
+    return deployContract(providers, options);
+  });
 }
 
 export function joinTarget<C extends Contract.Any>(
