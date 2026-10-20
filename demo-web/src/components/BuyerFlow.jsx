@@ -1,6 +1,8 @@
 import { useState } from 'react';
-import { checkSession, validateSession } from '../lib/session.js';
+import { validateSession } from '../lib/session.js';
+import { checkInMode, currentExecutionMode } from '../lib/execution.js';
 import { bytesToHex, randomBytes32 } from '../lib/bytes.js';
+import { ERROR_CODES, SAFE_ERROR_HEADINGS, createAppError, normalizeCheckError } from '../lib/check-errors.js';
 import LedgerPanel from './LedgerPanel.jsx';
 import DemoLog from './DemoLog.jsx';
 import CodeValue from './CodeValue.jsx';
@@ -10,7 +12,7 @@ export default function BuyerFlow({ session, onSessionChange, appendLog, ledgerV
   const [challengeInput, setChallengeInput] = useState(() => bytesToHex(randomBytes32()));
   const [differentSecret, setDifferentSecret] = useState(false);
   const [result, setResult] = useState(null);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
 
   function clearResult() { setResult(null); setError(''); }
@@ -19,6 +21,7 @@ export default function BuyerFlow({ session, onSessionChange, appendLog, ledgerV
   async function importSessionFile(file) {
     clearResult();
     try {
+      if (currentExecutionMode() !== 'simulator') throw new Error('Simulator session imports are only available in Simulator mode.');
       const data = validateSession(JSON.parse(await file.text()));
       onSessionChange(data);
       setQuestIdInput(data.questIdHex);
@@ -26,7 +29,8 @@ export default function BuyerFlow({ session, onSessionChange, appendLog, ledgerV
       appendLog('Buyer imported seller session file (secrets stored locally, not shown here).');
       if (!data.recorded) appendLog('Session file has no record yet — seller must complete recordQuest first.');
     } catch (e) {
-      setError(e?.message || String(e));
+      setError(normalizeCheckError(e));
+      appendLog('Buyer session import did not finish.');
     }
   }
 
@@ -34,19 +38,20 @@ export default function BuyerFlow({ session, onSessionChange, appendLog, ledgerV
     clearResult();
     setBusy(true);
     try {
-      const checked = checkSession(session, questIdInput, challengeInput, differentSecret);
+      const checked = await checkInMode(session, questIdInput, challengeInput, differentSecret);
+      if (checked?.membership !== 'match') throw createAppError(ERROR_CODES.UNKNOWN);
       setResult({ status: 'match', responseHex: checked.responseHex });
-      appendLog('Buyer checkAttestation succeeded (match).');
+      appendLog(`Buyer checkAttestation succeeded in ${currentExecutionMode()} mode (match).`);
       appendLog(`Response (challenge-bound): ${checked.responseHex.slice(0, 16)}…`);
       onSessionChange({ ...session, ledger: checked.ledger, lastResponseHex: checked.responseHex });
     } catch (e) {
-      const msg = e?.message || String(e);
-      if (/Attestation not found/i.test(msg)) {
-        setResult({ status: 'no-match', detail: msg });
-        appendLog('Buyer checkAttestation: no match (attestation not found).');
+      const safeError = normalizeCheckError(e);
+      if (safeError.code === ERROR_CODES.LOCAL_MEMBERSHIP_MISSING) {
+        setResult({ status: 'no-match' });
+        appendLog('Buyer check: no local match.');
       } else {
-        setError(msg);
-        appendLog(`Buyer check failed: ${msg}`);
+        setError(safeError);
+        appendLog(`Buyer check did not finish (${safeError.code}).`);
       }
       if (session?.recorded) onSessionChange({ ...session, lastResponseHex: null });
     } finally {
@@ -84,12 +89,12 @@ export default function BuyerFlow({ session, onSessionChange, appendLog, ledgerV
               <h3>{result.status === 'match' ? 'Match: a saved record exists for this quest.' : 'No match: no record for this code.'}</h3>
               <p>{result.status === 'match' ? 'This code matches the saved quest record.' : differentSecret ? 'A different secret was used. The saved record has not changed.' : 'The quest code and local material do not match the saved record.'}</p>
               {result.status === 'match' && <small className="simulator-note">Answered for this check only.</small>}
-              <details className="result-details"><summary>Details<span className="disclosure-arrow" aria-hidden="true" /></summary><div>{result.status === 'match' ? <><p>Challenge-bound response</p><CodeValue value={result.responseHex} label="response" /></> : <p className="technical-detail">{result.detail}</p>}</div></details>
+              <details className="result-details"><summary>Details<span className="disclosure-arrow" aria-hidden="true" /></summary><div>{result.status === 'match' ? <><p>Challenge-bound response</p><CodeValue value={result.responseHex} label="response" /></> : <p className="technical-detail">No matching local record was found.</p>}</div></details>
             </div>
             {businessView ? <button type="button" className="primary" onClick={onFinish}>Continue</button> : <p className="simulator-note">Coming next (not built): follow this engineer's steps in your business, and hire them when you get stuck.</p>}
           </>
         )}
-        {error && <div className="error-message" role="alert"><strong>Couldn't run this check.</strong><p>{error}</p></div>}
+        {error && <div className="error-message" role="alert"><strong>{SAFE_ERROR_HEADINGS[error.code]}</strong><p>{error.message}</p></div>}
 
         <details className="advanced" id="buyer-advanced">
           <summary>Advanced<span className="advanced-hint">Inputs & test options</span><span className="disclosure-arrow" aria-hidden="true" /></summary>

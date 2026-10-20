@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { exportMaterial, materialFromExport } from '../lib/simulator.js';
-import { recordSession } from '../lib/session.js';
+import { currentExecutionMode, recordInMode } from '../lib/execution.js';
 import { randomBytes32 } from '../lib/bytes.js';
 import LedgerPanel from './LedgerPanel.jsx';
 import DemoLog from './DemoLog.jsx';
@@ -42,10 +42,10 @@ export default function SellerFlow({ session, onSessionChange, appendLog, ledger
     setBusy(true);
     try {
       const material = ensureMaterial();
-      const recorded = recordSession(session ?? { ...exportMaterial(material), recorded: false });
+      const recorded = await recordInMode(session ?? { ...exportMaterial(material), recorded: false });
       onSessionChange(recorded);
       setStep(3);
-      appendLog('Seller called recordQuest on the local contract simulator.');
+      appendLog(`Seller called recordQuest in ${currentExecutionMode()} mode.`);
       appendLog(`Ledger counter is now ${recorded.ledger.counter}.`);
     } catch (e) {
       setError(e?.message || String(e));
@@ -57,6 +57,10 @@ export default function SellerFlow({ session, onSessionChange, appendLog, ledger
 
   function downloadSession() {
     if (!session) return;
+    if (session.network === 'preprod' || currentExecutionMode() !== 'simulator') {
+      setError('Network secret material cannot be exported by the sample sharing feature. Secure backup/import support is not implemented yet.');
+      return;
+    }
     const blob = new Blob([JSON.stringify(session, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -118,7 +122,7 @@ export default function SellerFlow({ session, onSessionChange, appendLog, ledger
           <div className="step-content">
             <div className="section-kicker"><span className="eyebrow">TODAY'S QUEST</span><span className="mock-tag">mock</span></div>
             <h2 id={engineerView ? 'engineer-heading' : 'flow-heading'} tabIndex={-1}>{engineerView ? "How the engineer's record was saved" : QUEST_TITLE}</h2>
-            <p className="flow-description">{engineerView ? 'Sample extraction quest. Saving calls recordQuest locally.' : 'Three small tasks. One step forward.'}</p>
+            <p className="flow-description">{engineerView ? `Sample extraction quest. Saving calls recordQuest in ${currentExecutionMode()} mode.` : 'Three small tasks. One step forward.'}</p>
             <QuestWorkContent />
             {!engineerView && <div className="quest-code"><span className="field-label">Your quest code</span><CodeValue value={session?.questIdHex ?? ''} label="quest id" /></div>}
             <button type="button" className="primary" onClick={completeQuest} disabled={busy}>{busy ? 'Saving your quest…' : engineerView ? 'Save engineer record' : 'Mark quest complete'}<span aria-hidden="true">→</span></button>
@@ -130,10 +134,10 @@ export default function SellerFlow({ session, onSessionChange, appendLog, ledger
             {!engineerView && <div className="success-symbol" aria-hidden="true"><span /></div>}
             <p className="eyebrow">ONE SMALL STEP, COMPLETED</p>
             <h2 id={engineerView ? 'engineer-heading' : 'flow-heading'} tabIndex={-1}>{engineerView ? "How the engineer's record was saved" : 'Your quest is saved.'}</h2>
-            <p className="flow-description">Saved locally. Only a code, not your personal details, is on the ledger.</p>
+            <p className="flow-description">{session?.network === 'preprod' ? 'Registration finalized on Preprod. Public hashes and counts are on the ledger.' : 'Saved locally. Public hashes and counts, not personal details, are on the ledger.'}</p>
             {!engineerView && <div className="quest-code"><span className="field-label">Share your quest code</span><CodeValue value={session.questIdHex} label="quest id" /></div>}
             <button type="button" className="primary" onClick={onCheckAsBuyer}>{engineerView ? 'Back to the business check' : 'Check it as a buyer'}<span aria-hidden="true">→</span></button>
-            {!engineerView && (
+            {!engineerView && currentExecutionMode() === 'simulator' && (
             <details className="advanced session-options"><summary>Session options<span className="disclosure-arrow" aria-hidden="true" /></summary><div className="advanced-body"><p className="support-copy">The session file contains local secrets. Only share it for this demo.</p><button type="button" className="secondary" onClick={downloadSession}>Download session file</button><button type="button" className="text-button" onClick={resetFlow}>Start a new demo</button></div></details>
             )}
           </div>

@@ -1,6 +1,6 @@
 # QuestAttestation — Midnight Wave 3
 
-A Compact record contract with private Merkle membership checks and registered-issuer authorization. This branch starts from main after PR #9 was squash-merged and re-applies only the issuer changes from PR #10. Execution and browser helpers are tested locally; Preprod deployment and wallet-backed transactions are planned separately. A registered issuer can approve a record, but the software does not establish that real-world work happened or identify a human reviewer.
+A Compact record contract with private Merkle membership checks and registered-issuer authorization. This replacement **Draft** starts from main at `bd8e021` after issuer PR #12 was squash-merged and re-applies only PR #13's Preprod integration changes. **Preprod contract address: not available; deployment unfinished.** The owner will create and control their own Lace wallet. No live wallet approval or network transaction was performed. A registered issuer can approve a record, but the software does not establish that real-world work happened or identify a human reviewer.
 
 ## Contract
 
@@ -46,7 +46,7 @@ cd ..
 npm run test:demo-web
 ```
 
-All six stateful circuits have regenerated keys: record, check, nullifier query, counter query, issuer registration and record authorization. Two pure key-identifier helpers are generated too. Jest has 32 compiled-contract simulator tests: 20 membership/record tests inherited from PR A and 12 explicit issuer-gate tests, including valid/unknown issuer, public-key impersonation, unauthorized registry access, exact-material binding, scope, duplicates and public transcript checks. The browser helper suite has 20 regressions. These are not network transaction tests. Existing Actions compile and test jobs are unchanged.
+All six stateful circuits have regenerated keys: record, check, nullifier query, counter query, issuer registration and record authorization. Two pure key-identifier helpers are generated too. Jest has 45 tests: 20 membership/record tests inherited from PR A, 12 issuer-gate tests and 13 offline wallet/mode guards. The browser helper suite has 20 regressions; the demo build also runs strict TypeScript checking and 4 official-adapter offline tests. These are not network transaction tests. Existing Actions compile and test workflows are unchanged.
 
 ## Browser demo
 
@@ -59,7 +59,17 @@ npm run build
 npm run preview
 ```
 
-The existing public demo deployment branch remains `cursor/midnight-demo-web-409a`. This replacement issuer branch is based directly on main at `d5f5313`, with only PR #10's issuer changes and updated base documentation. The original PR #9 commits are not reintroduced. No existing branch was rewritten or deleted, and this branch is not merged or published over the current demo. Merge decisions belong to the owner.
+The existing public demo deployment branch remains `cursor/midnight-demo-web-409a`. Draft PR #14 uses `cursor/wave3-preprod-main`, based directly on main at `bd8e021`. PR #13's integration-only changes were restacked without replaying issuer history; subsequent commits address the independent safety review. Existing branches and the public demo are unchanged. No merge, force-push or branch deletion is performed. Merge decisions belong to the owner.
+
+## Preprod preparation — Draft
+
+[Operator requirements and reproduction steps](demo-web/PREPROD.md) distinguish implemented SDK wiring from unfinished deployment. Simulator mode remains the default. Preprod (draft) offers Lace v4 connection and official provider/call entry points, but **live transactions are disabled by default**. An operator-controlled build can set the public feature flag `VITE_ENABLE_PREPROD_TRANSACTIONS=true` only after completing storage, issuer approval and live acceptance work. No address is supplied or invented; use only an actual deployed public address. Network errors never substitute simulator results.
+
+All record/check, wallet balance/submit and deployment entries use the same exact-true feature gate. Wallet state/network/public keys are freshly checked before balance and submit. Contract re-selection retires the old runner and displays the active address separately. Browser SDK private state now has AES-GCM/PBKDF2 encrypted IndexedDB storage, encrypted backup/import and a current-vault restore check. The deployment provider allowlist is still empty: deployment remains disabled even with a prepared vault and enabled flag. Add to allowlist only after owner approval and a Preprod test.
+
+Send recovery now models idle, awaiting-wallet, submitted, confirmed, failed and unknown. A public transaction ID is retained before submission; pending timeout/reload and safe reset do not authorize a duplicate send. Read-only status refresh is separate from quest checks. Typed local membership outcomes replace error-text classification; wallet, network and pending errors are distinct. Recipient record material remains memory-only and is not covered by the SDK vault; full local-state reconciliation is not supplied.
+
+Generated artifacts remain compiler 0.31.1 / Ledger 8.0.2 / runtime 0.16.0. SDK 4.1.1 uses a deduplicated Ledger 8.1.0 and on-chain runtime 3.0.0. CI runs an actual SDK circuit/unsubmitted-transaction regression and offline storage/recovery/error tests. PREPROD.md retains issue 7 (live version compatibility), empty-allowlist approval and recovery limits. **Deployed contract address: not available. No deployment has been performed.**
 
 ## References
 

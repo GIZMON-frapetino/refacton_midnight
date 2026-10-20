@@ -8,6 +8,7 @@ import { createRequire } from 'node:module';
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(rootDir, '..');
 const require = createRequire(import.meta.url);
+const ledgerBrowserEntry = path.join(path.dirname(require.resolve('@midnight-ntwrk/ledger-v8')), 'midnight_ledger_wasm.js');
 const runtimeEntry = require.resolve('@midnight-ntwrk/compact-runtime');
 const onchainBrowserEntry = path.join(
   path.dirname(require.resolve('@midnight-ntwrk/onchain-runtime-v3')),
@@ -25,10 +26,14 @@ export default defineConfig({
   },
   base: process.env.VITE_BASE || './',
   resolve: {
+    dedupe: ['@midnight-ntwrk/ledger-v8', '@midnight-ntwrk/compact-runtime', '@midnight-ntwrk/onchain-runtime-v3'],
     alias: {
       '@contract': path.resolve(repoRoot, 'compiled/contract/index.js'),
+      '@midnight-ntwrk/ledger-v8': ledgerBrowserEntry,
       '@midnight-ntwrk/compact-runtime': runtimeEntry,
       '@midnight-ntwrk/onchain-runtime-v3': onchainBrowserEntry,
+      'isomorphic-ws': path.resolve(rootDir, 'src/lib/browser-websocket.js'),
+      'assert': require.resolve('assert/'),
     },
     conditions: ['browser', 'import', 'module', 'default'],
   },

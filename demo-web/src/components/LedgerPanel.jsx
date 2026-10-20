@@ -1,5 +1,6 @@
 import CodeValue from './CodeValue.jsx';
 import Disclosure from './Disclosure.jsx';
+import { currentExecutionMode } from '../lib/execution.js';
 
 export default function LedgerPanel({ ledgerView }) {
   const counter = ledgerView?.counter ?? '0';
@@ -8,9 +9,9 @@ export default function LedgerPanel({ ledgerView }) {
 
   return (
     <Disclosure title="Public ledger" badge="contract">
-      <p className="simulator-note">Runs the QuestAttestation contract in a local simulator in your browser. Not deployed to a network yet.</p>
+      <p className="simulator-note">{currentExecutionMode() === 'preprod' ? ledgerView?.network === 'preprod' ? 'Read from the configured Preprod contract after finalization.' : 'Preprod draft: no network record loaded. Deployment is unfinished.' : 'Runs the QuestAttestation contract in a local simulator in your browser. Not deployed to a network yet.'}</p>
       <p className="support-copy">Codes only. No personal details.</p>
-      <p className="simulator-note">Issuer authorization is a local sample, not an external review.</p>
+      <p className="simulator-note">{currentExecutionMode() === 'preprod' ? 'Network registration requires an existing issuer approval; this app does not create sample approvals on the network.' : 'Issuer authorization is a local sample, not an external review.'}</p>
       <div className="ledger-stats" aria-label="Ledger counts">
         <div><strong>{counter}</strong><span>Records</span></div>
         <div><strong>{commitmentCount}</strong><span>Tree leaves</span></div>
