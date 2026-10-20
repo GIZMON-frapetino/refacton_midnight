@@ -1,6 +1,6 @@
 # QuestAttestation — Midnight Wave 3
 
-A Compact record contract with private Merkle membership checks and registered-issuer authorization. This replacement **Draft** is based on the main-based issuer branch in PR #12 and re-applies only PR #11's integration changes. **Preprod contract address: not available; deployment unfinished.** The owner will create and control their own Lace wallet. No live wallet approval or network transaction was performed. A registered issuer can approve a record, but the software does not establish that real-world work happened or identify a human reviewer.
+A Compact record contract with private Merkle membership checks and registered-issuer authorization. This replacement **Draft** starts from main at `bd8e021` after issuer PR #12 was squash-merged and re-applies only PR #13's Preprod integration changes. **Preprod contract address: not available; deployment unfinished.** The owner will create and control their own Lace wallet. No live wallet approval or network transaction was performed. A registered issuer can approve a record, but the software does not establish that real-world work happened or identify a human reviewer.
 
 ## Contract
 
@@ -59,7 +59,7 @@ npm run build
 npm run preview
 ```
 
-The existing public demo deployment branch remains `cursor/midnight-demo-web-409a`. This Draft starts from `cursor/wave3-issuer-auth-main` (PR #12), which is based directly on main at `d5f5313` after PR #9 was squash-merged. Only the integration changes from PR #11 and updated base documentation were added above the issuer branch. Original branches are retained unchanged; nothing was force-pushed, deleted, merged or published over the current demo. Merge decisions belong to the owner.
+The existing public demo deployment branch remains `cursor/midnight-demo-web-409a`. This Draft uses `cursor/wave3-preprod-main`, based directly on main at `bd8e021`. Only the three Preprod integration commits from PR #13 and updated base/branch documentation were added; the already-merged issuer changes were not replayed. Existing branches and the public demo are unchanged. This restack performs no merge, force-push or branch deletion. Merge decisions belong to the owner.
 
 ## Preprod preparation — Draft
 

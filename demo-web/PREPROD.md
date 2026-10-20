@@ -26,10 +26,10 @@ The network module is lazy-loaded and includes a large Ledger WASM (~10 MB uncom
 
 ## Reproduce the draft locally
 
-From the repository root, use the replacement draft branch based on issuer PR #12:
+From the repository root, use the main-based replacement draft branch. Main at `bd8e021` already includes issuer PR #12; this branch replays only PR #13's Preprod changes:
 
 ```bash
-git checkout cursor/wave3-preprod-wallet-restacked
+git checkout cursor/wave3-preprod-main
 npm install
 npm test
 cd demo-web
