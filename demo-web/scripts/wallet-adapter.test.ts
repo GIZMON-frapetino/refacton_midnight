@@ -38,5 +38,5 @@ test('memory state is address-scoped and does not offer unsafe exports', async (
 });
 
 test('deployment storage guard rejects the default ephemeral store', () => {
-  assert.throws(() => requireDurablePrivateState(new InMemoryPrivateStateProvider<Record<string, never>>()), /durable encrypted/);
+  assert.throws(() => requireDurablePrivateState(new InMemoryPrivateStateProvider<Record<string, never>>()), /approved encrypted durable/);
 });
