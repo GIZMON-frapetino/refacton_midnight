@@ -1,4 +1,5 @@
 import { CompactTypeBytes, CompactTypeVector, convertFieldToBytes, persistentHash } from '@midnight-ntwrk/compact-runtime';
+import { MembershipError } from './membership-error.js';
 
 const bytes = new CompactTypeBytes(32);
 const domain = (text) => {
@@ -35,7 +36,7 @@ export function recordWitnesses(material, authority = {}) {
     saltValue: ({ privateState }) => [privateState, material.salt],
     commitmentPath: ({ ledger, privateState }, comm) => {
       const path = ledger.commitments.findPathForLeaf(comm);
-      if (!path) throw new Error('Attestation not found');
+      if (!path) throw new MembershipError();
       return [privateState, path];
     },
     issuerAdminSecret: ({ privateState }) => [privateState, authority.adminSecret],
